@@ -97,10 +97,37 @@
             <div class="nav-label">ADMINISTRATION</div>
             <a href="#" class="nav-link"><i data-lucide="settings"></i> Paramètres</a>
         </nav>
+<div class="border-t border-line px-4 py-4">
 
-        <div class="border-t border-line px-5 py-4 text-[11px] text-[#827a7f]">
-            <div class="flex items-center gap-2"><i data-lucide="panel-left-close" class="h-4 w-4"></i> Réduire le menu</div>
+    {{-- Profil utilisateur --}}
+    <div class="mb-4 flex items-center gap-2">
+        <div class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#f0dfe4] text-[10px] font-semibold text-wine">
+            {{ strtoupper(substr(Auth::user()->name, 0, 2)) }}
         </div>
+
+        <div class="min-w-0 flex-1">
+            <div class="truncate text-[11px] font-semibold">
+                {{ Auth::user()->name }}
+            </div>
+            <div class="text-[9px] text-muted">
+                {{ Auth::user()->role->name }}
+            </div>
+        </div>
+    </div>
+
+    {{-- Bouton déconnexion --}}
+    <form action="{{ route('logout') }}" method="POST">
+        @csrf
+
+        <button type="submit"
+            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] font-medium text-red-600 transition hover:bg-red-50">
+
+            <i data-lucide="log-out" class="h-4 w-4"></i>
+            Déconnexion
+        </button>
+    </form>
+
+</div>
     </aside>
 
     {{-- Contenu principal --}}
@@ -120,14 +147,6 @@
                     <i data-lucide="bell" class="h-4 w-4"></i>
                     <span class="absolute right-2 top-1 h-1.5 w-1.5 rounded-full bg-red-500"></span>
                 </button>
-                <div class="flex items-center gap-2">
-                    <div class="grid h-[25px] w-[25px] place-items-center rounded-full bg-[#f0dfe4] text-[9px] font-semibold text-wine">EN</div>
-                    <div class="hidden sm:block">
-                        <div class="text-[10px] font-semibold">Eva Ndiaye</div>
-                        <div class="text-[9px] text-muted">Administratrice</div>
-                    </div>
-                    <i data-lucide="chevron-down" class="h-3 w-3 text-muted"></i>
-                </div>
             </div>
         </header>
 
