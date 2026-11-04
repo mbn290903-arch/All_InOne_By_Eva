@@ -27,37 +27,39 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => $request->password,
             'is_active' => true,
-        ])) {
-
+        ])) 
+        
+        {
             // 3. Régénérer la session pour la sécurité
             $request->session()->regenerate();
             // 4. Rediriger après connexion
-$user = Auth::user();
+            $user = Auth::user();
 
-if ($user->role->name === 'admin') {
-    return redirect()->route('dashboard');
-}
+            if ($user->role->name === 'admin') {
+                return redirect()->route('admin.dashboard');
+            }
 
-if ($user->role->name === 'receptionniste') {
-    return redirect()->route('receptionniste.dashboard');
-}
-if ($user->role->name === 'professionnel') {
-    return redirect()->route('professionnel.dashboard');
-}
+            if ($user->role->name === 'receptionniste') {
+                return redirect()->route('receptionniste.dashboard');
+            }
+            if ($user->role->name === 'professionnel') {
+                return redirect()->route('professionnel.dashboard');
+            }
 
-return redirect('/');
-    }
+            return redirect('/');
+        }
+
         // 5. Si les informations sont incorrectes
         return back()->withErrors([
             'email' => 'Identifiants incorrects ou compte désactivé.',
         ])->onlyInput('email');
     }
-    public function destroy(Request $request)
-{
-    Auth::logout();
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
 
-    return redirect()->route('login.show');
-}
+    public function destroy(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect()->route('login.show');
+    }
 }
