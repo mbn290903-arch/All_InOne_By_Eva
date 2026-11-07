@@ -20,14 +20,17 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
-            'role_id' => fn () => Role::query()->where('name', 'admin')->value('id'),
+            'role_id' => fn () => Role::where('name', 'admin')->firstOrFail()->id,
             'is_active' => true,
             'remember_token' => Str::random(10),
         ];
     }
 
-    public function role(string $role): static
-    {
-        return $this->state(fn () => ['role_id' => Role::query()->where('name', $role)->value('id')]);
-    }
+public function role(string $role): static
+{
+    return $this->state(fn () => [
+        'role_id' => Role::where('name', $role)
+            ->firstOrFail()->id
+    ]);
+}
 }

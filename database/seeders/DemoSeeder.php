@@ -18,14 +18,15 @@ use App\Services\RendezVousService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 /** Données de démonstration — à ne pas lancer en production. */
 class DemoSeeder extends Seeder
 {
     public function run(RendezVousService $rendezVous, PaiementService $paiements): void
     {
-        $admin = $this->utilisateur('Kara Niamana', 'karaniamana09@gmail.com', 'admin');
-        $this->utilisateur('Gaspard Sagna', 'Gas06@gmail.com', 'receptionniste');
+        $admin = $this->utilisateur('Eva Diallo', 'admin@allinone.test', 'admin');
+        $this->utilisateur('Awa Ndiaye', 'accueil@allinone.test', 'receptionniste');
         Auth::login($admin);
 
         $equipe = [
@@ -36,8 +37,8 @@ class DemoSeeder extends Seeder
 
         $employes = collect($equipe)->map(function ($e) {
             $user = $e[5] ? $this->utilisateur("{$e[0]} {$e[1]}", $e[5], 'professionnel') : null;
-            $employe = Employe::create(['prenom' => $e[0], 'nom' => $e[1], 'telephone' => '77'.random_int(1000000, 9999999), 'fonction' => $e[2], 'specialites' => $e[3], 'taux_commission' => 10, 'user_id' => $user?->id]);
-            $employe->services()->sync(Service::query()->whereHas('categorie', fn ($q) => $q->whereIn('nom', $e[4]))->pluck('id'));
+            $employe = Employe::create(['prenom' => $e[0], 'nom' => $e[1], 'telephone' => '77' . random_int(1000000, 9999999), 'fonction' => $e[2], 'specialites' => $e[3], 'taux_commission' => 10, 'user_id' => $user?->id]);
+            $employe->services()->sync(Service::query()->whereHas('categorie', fn($q) => $q->whereIn('nom', $e[4]))->pluck('id'));
             foreach (range(1, 6) as $jour) {
                 $employe->disponibilites()->create(['jour_semaine' => $jour, 'heure_debut' => '08:00', 'heure_fin' => '22:00']);
             }
@@ -60,8 +61,11 @@ class DemoSeeder extends Seeder
 
             try {
                 $rdv = $rendezVous->creer([
-                    'client_id' => $clients->random()->id, 'employe_id' => $employe->id, 'date' => $jour->toDateString(),
-                    'heure_debut' => $heure, 'zone' => 'mixte',
+                    'client_id' => $clients->random()->id,
+                    'employe_id' => $employe->id,
+                    'date' => $jour->toDateString(),
+                    'heure_debut' => $heure,
+                    'zone' => 'mixte',
                     'services' => $employe->services->where('zone.value', 'mixte')->random(1)->pluck('id')->all(),
                 ], $admin);
             } catch (RegleMetierException) {
@@ -96,8 +100,11 @@ class DemoSeeder extends Seeder
     private function utilisateur(string $nom, string $email, string $role): User
     {
         return User::create([
-            'name' => $nom, 'email' => $email, 'password' => 'password',
-            'role_id' => Role::query()->where('name', $role)->value('id'),
+        'name' => $nom,
+        'email' => $email,
+        'password' => Hash::make('password'),
+        'role_id' => Role::query()->where('name', $role)->value('id'),
+        'is_active' => true,
         ]);
     }
 }
