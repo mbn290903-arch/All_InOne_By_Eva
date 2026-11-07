@@ -22,8 +22,8 @@ class ClientFactory extends Factory
             'email' => fake()->optional(0.3)->safeEmail(),
             'date_naissance' => fake()->optional(0.8)->dateTimeBetween('-60 years', '-15 years'),
             'date_inscription' => fake()->dateTimeBetween('-1 year', '-6 months'),
-            'preference_communication' => 'whatsapp',
-            'consentement_promo' => fake()->boolean(70),
+            'canal_prefere' => 'whatsapp',
+            'consent_promotions' => fake()->boolean(70),
             'statut' => StatutClient::Actif,
         ];
     }
