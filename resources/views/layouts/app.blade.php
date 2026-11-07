@@ -48,7 +48,7 @@
     // TODO : remplacer les pastilles par de vraies valeurs calculées en base
     $nav = [
         'Pilotage' => [
-            ['Tableau de bord', 'dashboard', 'dashboard', null, null],
+            ['Tableau de bord', ['receptionniste' => 'receptionniste.dashboard', 'professionnel' => 'professionnel.dashboard'][$user->role->name] ?? 'admin.dashboard', 'dashboard', null, null],
             ['Rapports', null, 'rapports', null, null],
         ],
         'Activité' => [
