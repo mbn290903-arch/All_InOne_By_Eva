@@ -1,4 +1,5 @@
-<aside class="sidebar fixed inset-y-0 left-0 z-30 flex w-[255px] flex-col border-r border-line bg-white">
+<aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-30 flex w-[255px] flex-col border-r border-line bg-white">
+    
 
     {{-- Logo --}}
     <div class="flex h-[64px] items-center gap-3 border-b border-line px-5">
@@ -17,10 +18,11 @@
 
         <div class="nav-label">PILOTAGE</div>
 
-        <a href="{{ route('admin.dashboard') }}" class="nav-link active">
-            <i data-lucide="layout-dashboard"></i>
-            Tableau de bord
-        </a>
+<a href="{{ route('admin.dashboard') }}"
+   class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+    <i data-lucide="layout-dashboard"></i>
+    Tableau de bord
+</a>
 
         <a href="#" class="nav-link">
             <i data-lucide="chart-no-axes-column-increasing"></i>
@@ -29,10 +31,11 @@
 
         <div class="nav-label">ACTIVITÉ</div>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="calendar-days"></i>
-            Rendez-vous
-        </a>
+<a href="{{ route('rendez-vous.index') }}"
+   class="nav-link {{ request()->routeIs('rendez-vous.*') ? 'active' : '' }}">
+    <i data-lucide="calendar"></i>
+    Rendez-vous
+</a>
 
         <a href="#" class="nav-link">
             <i data-lucide="users"></i>

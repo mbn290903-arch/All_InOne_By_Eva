@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +10,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    {{-- Tes polices et tes styles CSS communs --}}
+    {{-- Styles communs à toutes les pages (config Tailwind, police, sidebar) --}}
+    @include('partials.styles')
+
+    {{-- Styles propres à une page --}}
     @stack('styles')
 </head>
 
@@ -19,6 +23,7 @@
 
         {{-- Sidebar --}}
         @include('partials.sidebar')
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
         {{-- Contenu principal --}}
         <main class="main-content ml-[255px] min-h-screen">
@@ -37,9 +42,34 @@
 
     <script>
         lucide.createIcons();
+
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+
+        function ouvrirMenu() {
+            sidebar.classList.add('ouverte');
+            overlay.classList.add('visible');
+        }
+
+        function fermerMenu() {
+            sidebar.classList.remove('ouverte');
+            overlay.classList.remove('visible');
+        }
+
+        document.getElementById('menu-btn').addEventListener('click', ouvrirMenu);
+        overlay.addEventListener('click', fermerMenu);
+
+        // Fermer le menu après un clic sur un lien
+        sidebar.querySelectorAll('a').forEach(lien => lien.addEventListener('click', fermerMenu));
+
+        // Touche Échap
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') fermerMenu();
+        });
     </script>
 
     @stack('scripts')
 
 </body>
+
 </html>
