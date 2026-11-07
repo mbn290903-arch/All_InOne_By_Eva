@@ -138,21 +138,25 @@ return new class extends Migration
 
         // ── Clients (CRM) ─────────────────────────────────────────────────────────
 
-        Schema::create('clients', function (Blueprint $table) {
+                Schema::create('clients', function (Blueprint $table) {
             $table->id();
             $table->string('prenom');
             $table->string('nom');
-            $table->string('telephone', 20)->unique();
-            $table->string('whatsapp', 20)->nullable();
+            $table->string('public', 10)->default('femme');
+            $table->string('telephone', 20)->index();
+            $table->string('whatsapp', 20)->nullable()->index();
             $table->string('email')->nullable();
             $table->date('date_naissance')->nullable();
             $table->date('date_inscription');
-            $table->string('preference_communication', 20)->default('whatsapp');
-            $table->boolean('consentement_promo')->default(false);
-            $table->timestamp('consentement_modifie_le')->nullable();
+            $table->string('canal_prefere', 20)->default('whatsapp');
+            $table->boolean('consent_promotions')->default(false);
+            $table->timestamp('consent_at')->nullable();
+            $table->foreignId('consent_par')->nullable()->constrained('users')->nullOnDelete();
             $table->string('preferences_prestations')->nullable();
             $table->text('notes')->nullable();
             $table->string('statut', 20)->default('actif')->index();
+            $table->timestamp('archived_at')->nullable()->index();
+            $table->foreignId('archived_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             $table->index(['nom', 'prenom']);
