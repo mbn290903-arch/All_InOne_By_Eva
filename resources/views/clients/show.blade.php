@@ -5,27 +5,56 @@
 @endsection
 
 @php
-    $val = fn($v) => $v instanceof \BackedEnum ? $v->value : (string) $v;
+    $val = fn ($v) => $v instanceof \BackedEnum
+        ? $v->value
+        : (string) ($v ?? '');
+
     $statut = $val($client->statut);
     $public = $val($client->public);
-    $canal  = $val($client->canal_prefere);
-    $code   = $client->code ?? 'CL-' . str_pad($client->id, 6, '0', STR_PAD_LEFT);
-    $ini    = mb_strtoupper(mb_substr($client->prenom, 0, 1) . mb_substr($client->nom, 0, 1));
-    $fmt    = fn($n) => preg_replace('/^(\d{2})(\d{3})(\d{2})(\d{2})$/', '$1 $2 $3 $4', (string) $n);
-    $wa     = $client->whatsapp ?: $client->telephone;
+    $canal = $val($client->canal_prefere);
+
+    $code = $client->code
+        ?? 'CL-' . str_pad($client->id, 6, '0', STR_PAD_LEFT);
+
+    $ini = mb_strtoupper(
+        mb_substr($client->prenom, 0, 1)
+        . mb_substr($client->nom, 0, 1)
+    );
+
+    $fmt = fn ($n) => preg_replace(
+        '/^(\d{2})(\d{3})(\d{2})(\d{2})$/',
+        '$1 $2 $3 $4',
+        (string) $n
+    );
+
+    $wa = $client->whatsapp ?: $client->telephone;
     $archive = $client->archived_at;
 
-    $naiss  = $client->date_naissance ? \Illuminate\Support\Carbon::parse($client->date_naissance) : null;
-    $inscr  = \Illuminate\Support\Carbon::parse($client->date_inscription ?? $client->created_at);
-    $jours  = null;
+    $naiss = $client->date_naissance
+        ? \Illuminate\Support\Carbon::parse($client->date_naissance)
+        : null;
+
+    $inscr = \Illuminate\Support\Carbon::parse(
+        $client->date_inscription ?? $client->created_at
+    );
+
+    $jours = null;
+
     if ($naiss) {
         $prochain = $naiss->copy()->year(now()->year);
-        if ($prochain->lt(now()->startOfDay())) { $prochain->addYear(); }
+
+        if ($prochain->lt(now()->startOfDay())) {
+            $prochain->addYear();
+        }
+
         $jours = (int) now()->startOfDay()->diffInDays($prochain);
     }
-    $statutStyle = ['actif' => 'bg-emerald-100 text-emerald-800', 'inactif' => 'bg-amber-100 text-amber-800'];
-@endphp
 
+    $statutStyle = [
+        'actif' => 'bg-emerald-100 text-emerald-800',
+        'inactif' => 'bg-amber-100 text-amber-800',
+    ];
+@endphp
 @section('content')
 <div class="mx-auto max-w-6xl space-y-6">
 
@@ -63,7 +92,9 @@
         <div class="flex flex-wrap gap-2">
             <button type="button" id="open-wa" @disabled(! $wa)
                     class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50">WhatsApp</button>
-            <button type="button" disabled title="Bientôt disponible" class="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-400">Nouveau RDV</button>
+            <a href="{{ route('rendez-vous.create') }}"
+                    class="flex items-center gap-2 rounded-lg bg-wine px-3 py-2 text-[12px] font-medium text-white"><i
+                        data-lucide="calendar-plus" class="h-3.5 w-3.5"></i> Nouveau RDV</a>
             <button type="button" disabled title="Bientôt disponible" class="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-400">Encaisser</button>
             @unless ($archive)
                 <a href="{{ route('clients.edit', $client) }}" class="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium hover:bg-neutral-50">Modifier</a>
@@ -200,7 +231,7 @@
 
 {{-- Message de confirmation (après modification ou restauration) --}}
 @if (session('status'))
-    <div role="status" class="fixed bottom-6 left-6 max-w-sm rounded-xl bg-neutral-900 px-5 py-4 text-sm text-white shadow-lg">
+    <div role="status" class="fixed bottom-6 right-6 z-[9999] w-[calc(100%-3rem)] max-w-sm rounded-xl bg-[#76243D] px-5 py-4 text-sm text-white shadow-lg">
         <strong class="block font-semibold">{{ session('status')[0] }}</strong>
         <span class="text-neutral-300">{{ session('status')[1] }}</span>
     </div>

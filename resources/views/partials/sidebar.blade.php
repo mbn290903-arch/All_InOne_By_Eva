@@ -1,4 +1,5 @@
-<aside class="sidebar fixed inset-y-0 left-0 z-30 flex w-[255px] flex-col border-r border-line bg-white">
+<aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-30 flex w-[255px] flex-col border-r border-line bg-white">
+
 
     {{-- Logo --}}
     <div class="flex h-[64px] items-center gap-3 border-b border-line px-5">
@@ -17,11 +18,19 @@
 
         <div class="nav-label">PILOTAGE</div>
 
-        <a href="{{ route('admin.dashboard') }}" class="nav-link active">
+        @php
+            $routeDashboard =
+                [
+                    'receptionniste' => 'receptionniste.dashboard',
+                    'professionnel' => 'professionnel.dashboard',
+                ][auth()->user()->role->name] ?? 'admin.dashboard';
+        @endphp
+
+        <a href="{{ route($routeDashboard) }}"
+            class="nav-link {{ request()->routeIs($routeDashboard) ? 'active' : '' }}">
             <i data-lucide="layout-dashboard"></i>
             Tableau de bord
         </a>
-
         <a href="#" class="nav-link">
             <i data-lucide="chart-no-axes-column-increasing"></i>
             Rapports
@@ -29,12 +38,13 @@
 
         <div class="nav-label">ACTIVITÉ</div>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="calendar-days"></i>
+        <a href="{{ route('rendez-vous.index') }}"
+            class="nav-link {{ request()->routeIs('rendez-vous.*') ? 'active' : '' }}">
+            <i data-lucide="calendar"></i>
             Rendez-vous
         </a>
 
-        <a href="#" class="nav-link">
+        <a href="{{ route('clients.index') }}" class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
             <i data-lucide="users"></i>
             Clients
         </a>
@@ -98,7 +108,8 @@
     <div class="border-t border-line px-4 py-4">
 
         <div class="mb-4 flex items-center gap-2">
-            <div class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#f0dfe4] text-[10px] font-semibold text-wine">
+            <div
+                class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#f0dfe4] text-[10px] font-semibold text-wine">
                 {{ strtoupper(substr(Auth::user()->name, 0, 2)) }}
             </div>
 

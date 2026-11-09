@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Models;
-
 use App\Enums\StatutRendezVous;
 use App\Enums\ZoneSalon;
 use Illuminate\Database\Eloquent\Builder;
@@ -78,6 +76,18 @@ class RendezVous extends Model
 
     public function scopeEntre(Builder $query, $debut, $fin): void
     {
-        $query->where('debut', '>=', $debut)->where('debut', '<', $fin);
+        $query->where('debut', '<', $fin)
+            ->where('fin', '>', $debut);
+    }
+
+    public function scopePourEmploye(Builder $query, int $employeId): void
+    {
+        $query->where('employe_id', $employeId);
+    }
+
+    /** RDV qui se chevauchent avec la plage donnée (pour détecter un conflit). */
+    public function scopeChevauche(Builder $query, $debut, $fin): void
+    {
+        $query->where('debut', '<', $fin)->where('fin', '>', $debut);
     }
 }

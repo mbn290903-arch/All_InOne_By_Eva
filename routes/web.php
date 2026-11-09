@@ -1,6 +1,9 @@
 <?php
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CalendrierController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\RendezVousController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -17,9 +20,7 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
 
     // Dashboards
-    Route::get('/dashboard', fn() => view('admin.dashboard'))
-        ->name('admin.dashboard');
-        
+    Route::get('/dashboard', [DashboardController::class, 'admin'])->name('admin.dashboard');
 
     Route::get('/receptionniste/dashboard', function () {
         return view('receptionniste.dashboard');
@@ -36,6 +37,13 @@ Route::middleware('auth')->group(function () {
     Route::post('clients/{client}/restore', [ClientController::class, 'restore'])->name('clients.restore');
 
     // Déconnexion
-    Route::post('/deconnexion', [AuthController::class, 'destroy'])
-        ->name('logout');
+    Route::post('/deconnexion', [AuthController::class, 'destroy'])->name('logout');
+});
+
+Route::middleware(['auth'])->prefix('rendez-vous')->name('rendez-vous.')->group(function () {
+    Route::get('/', [CalendrierController::class, 'index'])->name('index');
+    Route::get('/creer', [RendezVousController::class, 'create'])->name('create');
+    Route::post('/', [RendezVousController::class, 'store'])->name('store');
+    Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])->name('statut');
+    Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])->name('deplacer');
 });

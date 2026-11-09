@@ -49,6 +49,12 @@ class User extends Authenticatable
         return $this->hasRole(RoleEnum::Admin);
     }
 
+        /** Peut créer ou déplacer un rendez-vous dans le passé. */
+    public function peutPlanifierDansLePasse(): bool
+    {
+        return $this->isAdmin() || $this->hasPermission('rendez_vous.passe');
+    }
+
     public function hasPermission(PermissionEnum|string $permission): bool
     {
         $name = $permission instanceof PermissionEnum ? $permission->value : $permission;
