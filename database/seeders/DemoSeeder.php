@@ -1,7 +1,5 @@
 <?php
-
 namespace Database\Seeders;
-
 use App\Enums\StatutRendezVous;
 use App\Exceptions\RegleMetierException;
 use App\Models\CategorieDepense;
@@ -18,6 +16,7 @@ use App\Services\RendezVousService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 /** Données de démonstration — à ne pas lancer en production. */
 class DemoSeeder extends Seeder
@@ -96,14 +95,14 @@ class DemoSeeder extends Seeder
         Auth::logout();
     }
 
-    private function utilisateur(string $nom, string $email, string $role): User
-    {
-        return User::create([
-            'name' => $nom,
-            'email' => $email,
-            'password' => bcrypt('password'),
-            'role_id' => Role::query()->where('name', $role)->value('id'),
-            'is_active' => true,
-        ]);
+   private function utilisateur(string $nom, string $email, string $role): User
+{
+    return User::create([
+        'name' => $nom,
+        'email' => $email,
+        'password' => Hash::make('password'),
+        'role_id' => Role::query()->where('name', $role)->value('id'),
+        'is_active' => true,
+    ]);
     }
 }

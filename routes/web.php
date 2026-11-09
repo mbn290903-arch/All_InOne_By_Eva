@@ -1,8 +1,11 @@
-
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CalendrierController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PrestationController;
+use App\Http\Controllers\RendezVousController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -21,9 +24,9 @@ Route::middleware('guest')->group(function () {
 // Routes pour les utilisateurs connectés
 Route::middleware('auth')->group(function () {
 
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
+    // Tableaux de bord
+    Route::get('/dashboard', [DashboardController::class, 'admin'])
+        ->name('admin.dashboard');
 
     Route::get('/receptionniste/dashboard', function () {
         return view('receptionniste.dashboard');
@@ -33,25 +36,85 @@ Route::middleware('auth')->group(function () {
         return view('professionnel.dashboard');
     })->name('professionnel.dashboard');
 
-    Route::middleware('admin')->prefix('prestations')->name('prestations.')->group(function () {
+    // Gestion des clients
+    Route::get('clients/export', [ClientController::class, 'export'])
+        ->name('clients.export');
 
-        Route::get('/', [PrestationController::class, 'index'])->name('index');
+    Route::resource('clients', ClientController::class)
+        ->except(['destroy']);
 
-        Route::post('/', [PrestationController::class, 'storePrestation'])->name('store');
-        Route::put('/{id}', [PrestationController::class, 'updatePrestation'])->name('update');
-        Route::patch('/{id}/statut', [PrestationController::class, 'changerStatutPrestation'])->name('statut');
-        Route::delete('/{id}', [PrestationController::class, 'destroyPrestation'])->name('destroy');
+    Route::post('clients/{client}/archive', [ClientController::class, 'archive'])
+        ->name('clients.archive');
 
-        Route::post('/forfaits', [PrestationController::class, 'storeForfait'])->name('forfaits.store');
-        Route::put('/forfaits/{id}', [PrestationController::class, 'updateForfait'])->name('forfaits.update');
-        Route::patch('/forfaits/{id}/statut', [PrestationController::class, 'changerStatutForfait'])->name('forfaits.statut');
-        Route::delete('/forfaits/{id}', [PrestationController::class, 'destroyForfait'])->name('forfaits.destroy');
+    Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
+        ->name('clients.restore');
 
-        Route::post('/categories', [PrestationController::class, 'store'])->name('categories.store');
-        Route::put('/categories/{id}', [PrestationController::class, 'update'])->name('categories.update');
-        Route::delete('/categories/{id}', [PrestationController::class, 'destroy'])->name('categories.destroy');
-    });
-
+    // Déconnexion
     Route::post('/deconnexion', [AuthController::class, 'destroy'])
         ->name('logout');
+
+    // Prestations et forfaits
+    Route::middleware('admin')
+        ->prefix('prestations')
+        ->name('prestations.')
+        ->group(function () {
+
+            Route::get('/', [PrestationController::class, 'index'])
+                ->name('index');
+
+            Route::post('/', [PrestationController::class, 'storePrestation'])
+                ->name('store');
+
+            Route::put('/{id}', [PrestationController::class, 'updatePrestation'])
+                ->name('update');
+
+            Route::patch('/{id}/statut', [PrestationController::class, 'changerStatutPrestation'])
+                ->name('statut');
+
+            Route::delete('/{id}', [PrestationController::class, 'destroyPrestation'])
+                ->name('destroy');
+
+            Route::post('/forfaits', [PrestationController::class, 'storeForfait'])
+                ->name('forfaits.store');
+
+            Route::put('/forfaits/{id}', [PrestationController::class, 'updateForfait'])
+                ->name('forfaits.update');
+
+            Route::patch('/forfaits/{id}/statut', [PrestationController::class, 'changerStatutForfait'])
+                ->name('forfaits.statut');
+
+            Route::delete('/forfaits/{id}', [PrestationController::class, 'destroyForfait'])
+                ->name('forfaits.destroy');
+
+            Route::post('/categories', [PrestationController::class, 'store'])
+                ->name('categories.store');
+
+            Route::put('/categories/{id}', [PrestationController::class, 'update'])
+                ->name('categories.update');
+
+            Route::delete('/categories/{id}', [PrestationController::class, 'destroy'])
+                ->name('categories.destroy');
+        });
 });
+
+// Gestion des rendez-vous
+Route::middleware('auth')
+    ->prefix('rendez-vous')
+    ->name('rendez-vous.')
+    ->group(function () {
+
+        Route::get('/', [CalendrierController::class, 'index'])
+            ->name('index');
+
+        Route::get('/creer', [RendezVousController::class, 'create'])
+            ->name('create');
+
+        Route::post('/', [RendezVousController::class, 'store'])
+            ->name('store');
+
+        Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])
+            ->name('statut');
+
+        Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])
+            ->name('deplacer');
+    });
