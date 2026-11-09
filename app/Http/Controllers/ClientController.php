@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\StatutRendezVous;
 use App\Models\Client;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -22,7 +23,13 @@ class ClientController extends Controller
         $tab = $request->get('tab', 'tous');
         $tri = $request->get('tri', 'recent');
 
-        $clients = $this->filtered($request)->paginate(20)->withQueryString();
+        $clients = $this->filtered($request)
+            ->withCount(['rendezVous as visites' => fn($q) => $q->where('statut', StatutRendezVous::Termine)])
+            ->withMax(['rendezVous as derniere_visite' => fn($q) => $q->where('statut', StatutRendezVous::Termine)], 'debut')
+            ->withSum(['paiements as total_depense' => fn($q) => $q->whereNull('annule_le')], 'montant_paye')
+            ->withSum('mouvementsPoints as points', 'points')
+            ->paginate(20)
+            ->withQueryString();
 
         $actifs = Client::whereNull('archived_at');
         $stats = [
@@ -59,7 +66,6 @@ class ClientController extends Controller
     {
         $data = $this->validated($request);
 
-        // BUG 1 corrigé : « Créer quand même » (force=1) est enfin lu.
         if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'])) {
             return back()->withInput()->with('doublon', $this->infosDoublon($existant));
         }
@@ -70,7 +76,7 @@ class ClientController extends Controller
             'date_inscription'   => now()->toDateString(),
             'consent_promotions' => $consent,
             'consent_at'         => $consent ? now() : null,
-            'consent_par'        => $consent ? Auth::id() : null,   // BUG 4 corrigé
+            'consent_par'        => $consent ? Auth::id() : null,
         ]);
 
         return redirect()->route('clients.index')->with('status', [
@@ -97,7 +103,7 @@ class ClientController extends Controller
 
         $data = $this->validated($request);
 
-        if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'],(int) $client->getKey())) {
+        if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'], (int) $client->getKey())) {
             return back()->withInput()->with('doublon', $this->infosDoublon($existant));
         }
 
@@ -113,7 +119,7 @@ class ClientController extends Controller
 
         $client->update($data);
 
-        return redirect()->route('clients.show', $client)->with('status', [
+        return redirect()->route('clients.index')->with('status', [
             'Fiche mise à jour',
             "{$client->prenom} {$client->nom} ({$this->code($client)}).",
         ]);
@@ -171,9 +177,22 @@ class ClientController extends Controller
 
             $put = fn(array $row) => fputcsv($out, array_map([$this, 'csvSafe'], $row), ';', '"', '');
 
-            $put(['Identifiant', 'Prénom', 'Nom', 'Public', 'Téléphone', 'WhatsApp', 'E-mail',
-                  'Date de naissance', 'Date inscription', 'Canal préféré', 'Consentement promo',
-                  'Date consentement', 'Statut', 'Archivé le']);
+            $put([
+                'Identifiant',
+                'Prénom',
+                'Nom',
+                'Public',
+                'Téléphone',
+                'WhatsApp',
+                'E-mail',
+                'Date de naissance',
+                'Date inscription',
+                'Canal préféré',
+                'Consentement promo',
+                'Date consentement',
+                'Statut',
+                'Archivé le'
+            ]);
 
             $query->chunkById(500, function ($rows) use ($put) {
                 foreach ($rows as $c) {
@@ -224,7 +243,7 @@ class ClientController extends Controller
 
                 if ($digits !== '') {
                     $w->orWhere('telephone', 'like', "%{$digits}%")
-                      ->orWhere('whatsapp', 'like', "%{$digits}%");
+                        ->orWhere('whatsapp', 'like', "%{$digits}%");
                 }
                 // Recherche par identifiant : CL-000012 ou CL000012
                 if (preg_match('/^CL-?0*(\d+)$/i', $q, $m)) {
@@ -233,9 +252,15 @@ class ClientController extends Controller
             });
         }
 
-        if ($tab === 'actifs')       { $query->where('statut', 'actif'); }
-        if ($tab === 'inactifs')     { $query->where('statut', 'inactif'); }
-        if ($tab === 'anniversaire') { $this->anniversaire($query); }
+        if ($tab === 'actifs') {
+            $query->where('statut', 'actif');
+        }
+        if ($tab === 'inactifs') {
+            $query->where('statut', 'inactif');
+        }
+        if ($tab === 'anniversaire') {
+            $this->anniversaire($query);
+        }
 
         $tri === 'nom'
             ? $query->orderBy('nom')->orderBy('prenom')
@@ -245,10 +270,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Anniversaires des 30 prochains jours, en SQL (plus de ->get() sur toute la table).
-     * On compare le « mois-jour » à la liste des 31 prochains jours du calendrier réel :
-     * pas de décalage au 29 février (une personne née un 29/02 apparaît le 29/02 les
-     * années bissextiles ; en année normale, ajoutez '02-28' si vous voulez la fêter).
+     * Anniversaires des 30 prochains jours, en SQL.
      */
     private function anniversaire(Builder $query): Builder
     {
@@ -264,7 +286,7 @@ class ClientController extends Controller
             ->whereRaw("{$expr} in (" . implode(',', array_fill(0, count($jours), '?')) . ')', $jours);
     }
 
-    /** Normalise puis valide. BUG 2 et 3 : noms de champs uniques + champ `public`. */
+    /** Normalise puis valide. */
     private function validated(Request $request): array
     {
         $tel = preg_replace('/\D/', '', (string) $request->telephone);
@@ -306,7 +328,7 @@ class ClientController extends Controller
     private function infosDoublon(Client $c): array
     {
         return [
-            'id' => $c->getKey(),
+            'id'   => $c->getKey(),
             'nom'  => trim($c->prenom . ' ' . $c->nom),
             'code' => $this->code($c),
         ];

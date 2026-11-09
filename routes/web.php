@@ -19,13 +19,8 @@ Route::middleware('guest')->group(function () {
 // Routes pour les utilisateurs connectés
 Route::middleware('auth')->group(function () {
 
-    // Dashboard administrateur
-    Route::get('/dashboard', [DashboardController::class, 'admin'])->name('admin.dashboard');
-    // Dashboard réceptionniste
     // Dashboards
-    Route::get('/dashboard', fn() => view('admin.dashboard'))
-        ->name('admin.dashboard');
-        
+    Route::get('/dashboard', [DashboardController::class, 'admin'])->name('admin.dashboard');
 
     Route::get('/receptionniste/dashboard', function () {
         return view('receptionniste.dashboard');
@@ -46,19 +41,9 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth'])->prefix('rendez-vous')->name('rendez-vous.')->group(function () {
-
-    // Afficher le calendrier
     Route::get('/', [CalendrierController::class, 'index'])->name('index');
-
-    // Afficher le formulaire d'ajout
     Route::get('/creer', [RendezVousController::class, 'create'])->name('create');
-
-    // Enregistrer le rendez-vous
     Route::post('/', [RendezVousController::class, 'store'])->name('store');
-    // Changer le statut d'un rendez-vous
     Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])->name('statut');
-    // Déplacer un rendez-vous
     Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])->name('deplacer');
 });
-    Route::post('/deconnexion', [AuthController::class, 'destroy'])
-        ->name('logout');

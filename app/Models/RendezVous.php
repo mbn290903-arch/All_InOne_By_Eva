@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Models;
-
 use App\Enums\StatutRendezVous;
 use App\Enums\ZoneSalon;
 use Illuminate\Database\Eloquent\Builder;

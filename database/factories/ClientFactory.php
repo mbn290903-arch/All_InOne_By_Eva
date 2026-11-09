@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Enums\StatutClient;
 use App\Models\Client;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -24,7 +23,7 @@ class ClientFactory extends Factory
             'date_inscription' => fake()->dateTimeBetween('-1 year', '-6 months'),
             'canal_prefere' => 'whatsapp',
             'consent_promotions' => fake()->boolean(70),
-            'statut' => StatutClient::Actif,
+            'statut' => 'actif',
         ];
     }
 

@@ -52,5 +52,5 @@
         .menu-btn { display: grid; }
         .main-content { margin-left: 0 !important; }
         .desktop-search { display: none !important; }
-    }j
+    }
 </style>
