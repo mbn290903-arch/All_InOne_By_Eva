@@ -6,11 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * All in One by Eva — schéma complet en une seule migration.
- *
- * Remplace les 10 migrations séparées du projet : à utiliser SEULE dans database/migrations
- * (supprimez les autres fichiers, sinon les tables seraient créées deux fois).
- *
- *   php artisan migrate:fresh --seed
  */
 return new class extends Migration
 {
@@ -112,7 +107,6 @@ return new class extends Migration
             $table->longText('payload');
             $table->longText('exception');
             $table->timestamp('failed_at')->useCurrent();
-
             $table->index(['connection', 'queue', 'failed_at']);
         });
 
@@ -138,25 +132,34 @@ return new class extends Migration
 
         // ── Clients (CRM) ─────────────────────────────────────────────────────────
 
-                Schema::create('clients', function (Blueprint $table) {
+        Schema::create('clients', function (Blueprint $table) {
             $table->id();
             $table->string('prenom');
             $table->string('nom');
-            $table->string('public', 10)->default('femme');
-            $table->string('telephone', 20)->index();
-            $table->string('whatsapp', 20)->nullable()->index();
+            $table->string('public', 10)->nullable()->default(null);
+
+            $table->string('telephone', 20)->unique();
+            $table->string('whatsapp', 20)->nullable();
             $table->string('email')->nullable();
+
             $table->date('date_naissance')->nullable();
             $table->date('date_inscription');
+
             $table->string('canal_prefere', 20)->default('whatsapp');
             $table->boolean('consent_promotions')->default(false);
             $table->timestamp('consent_at')->nullable();
-            $table->foreignId('consent_par')->nullable()->constrained('users')->nullOnDelete();
+
             $table->string('preferences_prestations')->nullable();
             $table->text('notes')->nullable();
+
             $table->string('statut', 20)->default('actif')->index();
+
             $table->timestamp('archived_at')->nullable()->index();
-            $table->foreignId('archived_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('archived_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
             $table->timestamps();
 
             $table->index(['nom', 'prenom']);
@@ -220,11 +223,10 @@ return new class extends Migration
         Schema::create('disponibilites', function (Blueprint $table) {
             $table->id();
             $table->foreignId('employe_id')->constrained()->cascadeOnDelete();
-            $table->unsignedTinyInteger('jour_semaine'); // 1 = lundi … 7 = dimanche (ISO-8601)
+            $table->unsignedTinyInteger('jour_semaine');
             $table->time('heure_debut');
             $table->time('heure_fin');
             $table->timestamps();
-
             $table->unique(['employe_id', 'jour_semaine']);
         });
 
@@ -242,7 +244,6 @@ return new class extends Migration
             $table->text('commentaire')->nullable();
             $table->foreignId('cree_par')->constrained('users')->restrictOnDelete();
             $table->timestamps();
-
             $table->index(['employe_id', 'debut', 'fin']);
         });
 
@@ -391,7 +392,6 @@ return new class extends Migration
             $table->text('message_personnalise');
             $table->timestamp('ouvert_le')->nullable();
             $table->string('suivi_manuel')->nullable();
-
             $table->unique(['campagne_message_id', 'client_id']);
         });
 
@@ -402,7 +402,6 @@ return new class extends Migration
             $table->string('offre')->nullable();
             $table->foreignId('traite_par')->constrained('users')->restrictOnDelete();
             $table->timestamps();
-
             $table->unique(['client_id', 'annee']);
         });
     }

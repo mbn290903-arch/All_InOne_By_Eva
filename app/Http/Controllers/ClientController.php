@@ -76,7 +76,6 @@ class ClientController extends Controller
             'date_inscription'   => now()->toDateString(),
             'consent_promotions' => $consent,
             'consent_at'         => $consent ? now() : null,
-            'consent_par'        => $consent ? Auth::id() : null,
         ]);
 
         return redirect()->route('clients.index')->with('status', [
@@ -112,8 +111,7 @@ class ClientController extends Controller
         if ($consent !== (bool) $client->consent_promotions) {
             $data += [
                 'consent_promotions' => $consent,
-                'consent_at'         => now(),
-                'consent_par'        => Auth::id(),
+                'consent_at'         => $consent ? now() : null,
             ];
         }
 
@@ -296,7 +294,7 @@ class ClientController extends Controller
         return $request->validate([
             'prenom'         => 'required|string|max:80',
             'nom'            => 'required|string|max:80',
-            'public'         => 'required|in:femme,homme,enfant',
+            'public'         => 'nullable|in:femme,homme,enfant',
             'date_naissance' => 'nullable|date|before:today',
             'telephone'      => 'required|digits:9',
             'whatsapp'       => 'required|digits:9',

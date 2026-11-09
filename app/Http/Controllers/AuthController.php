@@ -1,22 +1,18 @@
 <?php
-
 namespace App\Http\Controllers;
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    // Afficher la page de connexion
     public function showLogin()
     {
         return view('auth.login');
     }
 
-    // Traiter la connexion
     public function login(Request $request)
     {
-        // 1. Valider les champs du formulaire
+        // 1. Valider les données
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
@@ -27,12 +23,11 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => $request->password,
             'is_active' => true,
-        ])) 
-        
-        {
+        ])) {
             // 3. Régénérer la session pour la sécurité
             $request->session()->regenerate();
-            // 4. Rediriger après connexion
+
+            // 4. Rediriger selon le rôle
             $user = Auth::user();
 
             if ($user->role->name === 'admin') {
@@ -42,6 +37,7 @@ class AuthController extends Controller
             if ($user->role->name === 'receptionniste') {
                 return redirect()->route('receptionniste.dashboard');
             }
+
             if ($user->role->name === 'professionnel') {
                 return redirect()->route('professionnel.dashboard');
             }
@@ -60,6 +56,7 @@ class AuthController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect()->route('login.show');
     }
 }

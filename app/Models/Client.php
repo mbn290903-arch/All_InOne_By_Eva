@@ -35,7 +35,6 @@ class Client extends Model
         'canal_prefere',
         'consent_promotions',
         'consent_at',
-        'consent_par',
         'preferences_prestations',
         'notes',
         'statut',
