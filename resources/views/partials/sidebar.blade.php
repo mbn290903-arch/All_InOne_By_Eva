@@ -49,7 +49,7 @@
             Clients
         </a>
 
-        <a href="{{route('prestations.index')}}" class="nav-link">
+        <a href="{{ route('prestations.index') }}" class="nav-link">
             <i data-lucide="sparkles"></i>
             Prestations
         </a>

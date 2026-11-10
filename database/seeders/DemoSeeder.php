@@ -1,7 +1,5 @@
 <?php
-
 namespace Database\Seeders;
-
 use App\Enums\StatutRendezVous;
 use App\Exceptions\RegleMetierException;
 use App\Models\CategorieDepense;
@@ -97,14 +95,14 @@ class DemoSeeder extends Seeder
         Auth::logout();
     }
 
-    private function utilisateur(string $nom, string $email, string $role): User
-    {
-        return User::create([
+   private function utilisateur(string $nom, string $email, string $role): User
+{
+    return User::create([
         'name' => $nom,
         'email' => $email,
         'password' => Hash::make('password'),
         'role_id' => Role::query()->where('name', $role)->value('id'),
         'is_active' => true,
-        ]);
+    ]);
     }
 }

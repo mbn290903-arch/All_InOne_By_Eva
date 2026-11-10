@@ -1,74 +1,74 @@
 @extends('layouts.app')
 @section('title', $client->prenom . ' ' . $client->nom . ' — All in One by Eva')
 @section('breadcrumb')
-    <a href="{{ route('clients.index') }}" class="hover:underline">Clients</a> / <span class="text-neutral-900">{{ $client->prenom }} {{ $client->nom }}</span>
+<a href="{{ route('clients.index') }}" class="hover:underline">Clients</a> / <span class="text-neutral-900">{{ $client->prenom }} {{ $client->nom }}</span>
 @endsection
 
 @php
-    $val = fn ($v) => $v instanceof \BackedEnum
-        ? $v->value
-        : (string) ($v ?? '');
+$val = fn ($v) => $v instanceof \BackedEnum
+? $v->value
+: (string) ($v ?? '');
 
-    $statut = $val($client->statut);
-    $public = $val($client->public);
-    $canal = $val($client->canal_prefere);
+$statut = $val($client->statut);
+$public = $val($client->public);
+$canal = $val($client->canal_prefere);
 
-    $code = $client->code
-        ?? 'CL-' . str_pad($client->id, 6, '0', STR_PAD_LEFT);
+$code = $client->code
+?? 'CL-' . str_pad($client->id, 6, '0', STR_PAD_LEFT);
 
-    $ini = mb_strtoupper(
-        mb_substr($client->prenom, 0, 1)
-        . mb_substr($client->nom, 0, 1)
-    );
+$ini = mb_strtoupper(
+mb_substr($client->prenom, 0, 1)
+. mb_substr($client->nom, 0, 1)
+);
 
-    $fmt = fn ($n) => preg_replace(
-        '/^(\d{2})(\d{3})(\d{2})(\d{2})$/',
-        '$1 $2 $3 $4',
-        (string) $n
-    );
+$fmt = fn ($n) => preg_replace(
+'/^(\d{2})(\d{3})(\d{2})(\d{2})$/',
+'$1 $2 $3 $4',
+(string) $n
+);
 
-    $wa = $client->whatsapp ?: $client->telephone;
-    $archive = $client->archived_at;
+$wa = $client->whatsapp ?: $client->telephone;
+$archive = $client->archived_at;
 
-    $naiss = $client->date_naissance
-        ? \Illuminate\Support\Carbon::parse($client->date_naissance)
-        : null;
+$naiss = $client->date_naissance
+? \Illuminate\Support\Carbon::parse($client->date_naissance)
+: null;
 
-    $inscr = \Illuminate\Support\Carbon::parse(
-        $client->date_inscription ?? $client->created_at
-    );
+$inscr = \Illuminate\Support\Carbon::parse(
+$client->date_inscription ?? $client->created_at
+);
 
-    $jours = null;
+$jours = null;
 
-    if ($naiss) {
-        $prochain = $naiss->copy()->year(now()->year);
+if ($naiss) {
+$prochain = $naiss->copy()->year(now()->year);
 
-        if ($prochain->lt(now()->startOfDay())) {
-            $prochain->addYear();
-        }
+if ($prochain->lt(now()->startOfDay())) {
+$prochain->addYear();
+}
 
-        $jours = (int) now()->startOfDay()->diffInDays($prochain);
-    }
+$jours = (int) now()->startOfDay()->diffInDays($prochain);
+}
 
-    $statutStyle = [
-        'actif' => 'bg-emerald-100 text-emerald-800',
-        'inactif' => 'bg-amber-100 text-amber-800',
-    ];
+$statutStyle = [
+'actif' => 'bg-emerald-100 text-emerald-800',
+'inactif' => 'bg-amber-100 text-amber-800',
+];
 @endphp
 @section('content')
 <div class="mx-auto max-w-6xl space-y-6">
 
     {{-- ===== Bandeau d'archivage ===== --}}
     @if ($archive)
-        <div role="status" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-300 bg-neutral-100 px-5 py-4 text-sm">
-            <p><strong class="font-semibold">Fiche archivée</strong> depuis le {{ $archive->format('d/m/Y') }}. L'historique est conservé ; la fiche n'apparaît plus dans les listes courantes.</p>
-            @can('archive', $client)
-                <form method="POST" action="{{ route('clients.restore', $client) }}">
-                    @csrf
-                    <button type="submit" class="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">Restaurer la fiche</button>
-                </form>
-            @endcan
-        </div>
+    <div role="status" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-300 bg-neutral-100 px-5 py-4 text-sm">
+        <p><strong class="font-semibold">Fiche archivée</strong> depuis le {{ $archive->format('d/m/Y') }}. L'historique est conservé ; la fiche n'apparaît plus dans les listes courantes.</p>
+        @can('archive', $client)
+        <form method="POST" action="{{ route('clients.restore', $client) }}">
+            @csrf
+            <button type="submit" class="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">Restaurer la fiche</button>
+        </form>
+        @endcan
+    </div>
     @endif
 
     {{-- ===== En-tête ===== --}}
@@ -80,10 +80,10 @@
                     <h1 class="text-2xl font-semibold tracking-tight">{{ $client->prenom }} {{ $client->nom }}</h1>
                     <span class="rounded-full px-2.5 py-0.5 text-xs font-medium {{ $statutStyle[$statut] ?? 'bg-neutral-100 text-neutral-600' }}">{{ ucfirst($statut) }}</span>
                     @if ($archive)
-                        <span class="rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs font-medium text-neutral-700">Archivé</span>
+                    <span class="rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs font-medium text-neutral-700">Archivé</span>
                     @endif
                     @if ($public === 'femme')
-                        <span class="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">Accès espace femmes</span>
+                    <span class="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">Accès espace femmes</span>
                     @endif
                 </div>
                 <p class="mt-1.5 text-sm text-neutral-500">{{ $code }} · Cliente depuis {{ $inscr->translatedFormat('F Y') }}</p>
@@ -91,13 +91,13 @@
         </div>
         <div class="flex flex-wrap gap-2">
             <button type="button" id="open-wa" @disabled(! $wa)
-                    class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50">WhatsApp</button>
+                class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50">WhatsApp</button>
             <a href="{{ route('rendez-vous.create') }}"
-                    class="flex items-center gap-2 rounded-lg bg-wine px-3 py-2 text-[12px] font-medium text-white"><i
-                        data-lucide="calendar-plus" class="h-3.5 w-3.5"></i> Nouveau RDV</a>
+                class="flex items-center gap-2 rounded-lg bg-wine px-3 py-2 text-[12px] font-medium text-white"><i
+                    data-lucide="calendar-plus" class="h-3.5 w-3.5"></i> Nouveau RDV</a>
             <button type="button" disabled title="Bientôt disponible" class="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-400">Encaisser</button>
             @unless ($archive)
-                <a href="{{ route('clients.edit', $client) }}" class="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium hover:bg-neutral-50">Modifier</a>
+            <a href="{{ route('clients.edit', $client) }}" class="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium hover:bg-neutral-50">Modifier</a>
             @endunless
         </div>
     </section>
@@ -111,31 +111,43 @@
                 <h2 class="border-b border-neutral-200 px-6 py-4 font-semibold">Informations</h2>
                 <dl class="space-y-3 px-6 py-5 text-sm">
                     @foreach ([
-                        'Téléphone' => '+221 ' . $fmt($client->telephone),
-                        'WhatsApp'  => $client->whatsapp ? '+221 ' . $fmt($client->whatsapp) : 'Non renseigné',
-                        'E-mail'    => $client->email ?: 'Non renseigné',
+                    'Téléphone' => '+221 ' . $fmt($client->telephone),
+                    'WhatsApp' => $client->whatsapp ? '+221 ' . $fmt($client->whatsapp) : 'Non renseigné',
+                    'E-mail' => $client->email ?: 'Non renseigné',
                     ] as $k => $v)
-                        <div class="flex justify-between gap-4"><dt class="text-neutral-500">{{ $k }}</dt><dd class="text-right">{{ $v }}</dd></div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-neutral-500">{{ $k }}</dt>
+                        <dd class="text-right">{{ $v }}</dd>
+                    </div>
                     @endforeach
                     <div class="flex justify-between gap-4">
                         <dt class="text-neutral-500">Naissance</dt>
                         <dd class="text-right">
                             @if ($naiss)
-                                {{ $naiss->translatedFormat('j F Y') }}
-                                @if ($jours !== null && $jours <= 30)<span class="text-brand-600">· anniv. dans {{ $jours }} j</span>@endif
-                            @else Non renseignée @endif
+                            {{ $naiss->translatedFormat('j F Y') }}
+                            @if ($jours !== null && $jours <= 30)<span class="text-brand-600">· anniv. dans {{ $jours }} j</span>@endif
+                                @else Non renseignée @endif
                         </dd>
                     </div>
-                    <div class="flex justify-between gap-4"><dt class="text-neutral-500">Inscription</dt><dd>{{ $inscr->translatedFormat('j F Y') }}</dd></div>
-                    <div class="flex justify-between gap-4"><dt class="text-neutral-500">Public</dt><dd>{{ ucfirst($public) }}</dd></div>
-                    <div class="flex justify-between gap-4"><dt class="text-neutral-500">Canal préféré</dt><dd>{{ ['whatsapp' => 'WhatsApp', 'appel' => 'Appel', 'sms' => 'SMS'][$canal] ?? '—' }}</dd></div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-neutral-500">Inscription</dt>
+                        <dd>{{ $inscr->translatedFormat('j F Y') }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-neutral-500">Public</dt>
+                        <dd>{{ $public !== '' ? ucfirst($public) : 'Non renseigné' }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-neutral-500">Canal préféré</dt>
+                        <dd>{{ ['whatsapp' => 'WhatsApp', 'appel' => 'Appel', 'sms' => 'SMS'][$canal] ?? '—' }}</dd>
+                    </div>
                     <div class="flex justify-between gap-4">
                         <dt class="text-neutral-500">Marketing</dt>
                         <dd class="text-right">
                             @if ($client->consent_promotions)
-                                <span class="text-emerald-700">✓ Consentement{{ $client->consent_at ? ' (' . \Illuminate\Support\Carbon::parse($client->consent_at)->format('d/m/Y') . ')' : '' }}</span>
+                            <span class="text-emerald-700">✓ Consentement{{ $client->consent_at ? ' (' . \Illuminate\Support\Carbon::parse($client->consent_at)->format('d/m/Y') . ')' : '' }}</span>
                             @else
-                                <span class="text-neutral-500">Pas de consentement</span>
+                            <span class="text-neutral-500">Pas de consentement</span>
                             @endif
                         </dd>
                     </div>
@@ -146,9 +158,9 @@
                 <h2 class="border-b border-neutral-200 px-6 py-4 font-semibold">Notes</h2>
                 <div class="px-6 py-5 text-sm">
                     @if ($client->notes)
-                        <p class="leading-relaxed">{!! nl2br(e($client->notes)) !!}</p>
+                    <p class="leading-relaxed">{!! nl2br(e($client->notes)) !!}</p>
                     @else
-                        <p class="text-neutral-500">Aucune note pour cette cliente.</p>
+                    <p class="text-neutral-500">Aucune note pour cette cliente.</p>
                     @endif
                 </div>
             </section>
@@ -167,11 +179,11 @@
 
             <div class="grid grid-cols-2 gap-4 xl:grid-cols-4">
                 @foreach ([['Visites', '0', ''], ['Total dépensé', '0', 'FCFA'], ['Panier moyen', '—', 'FCFA'], ['Reste à payer', '0', 'FCFA']] as [$t, $n, $u])
-                    <div class="rounded-xl border border-neutral-200 bg-white p-5">
-                        <p class="text-sm text-neutral-500">{{ $t }}</p>
-                        <p class="mt-2 text-2xl font-semibold">{{ $n }}</p>
-                        <p class="mt-1 text-xs text-neutral-500">{{ $u }}</p>
-                    </div>
+                <div class="rounded-xl border border-neutral-200 bg-white p-5">
+                    <p class="text-sm text-neutral-500">{{ $t }}</p>
+                    <p class="mt-2 text-2xl font-semibold">{{ $n }}</p>
+                    <p class="mt-1 text-xs text-neutral-500">{{ $u }}</p>
+                </div>
                 @endforeach
             </div>
 
@@ -231,28 +243,33 @@
 
 {{-- Message de confirmation (après modification ou restauration) --}}
 @if (session('status'))
-    <div role="status" class="fixed bottom-6 right-6 z-[9999] w-[calc(100%-3rem)] max-w-sm rounded-xl bg-[#76243D] px-5 py-4 text-sm text-white shadow-lg">
-        <strong class="block font-semibold">{{ session('status')[0] }}</strong>
-        <span class="text-neutral-300">{{ session('status')[1] }}</span>
-    </div>
+<div role="status" class="fixed bottom-6 right-6 z-[9999] w-[calc(100%-3rem)] max-w-sm rounded-xl bg-[#76243D] px-5 py-4 text-sm text-white shadow-lg">
+    <strong class="block font-semibold">{{ session('status')[0] }}</strong>
+    <span class="text-neutral-300">{{ session('status')[1] }}</span>
+</div>
 @endif
 
 <script>
     const dlg = document.getElementById('wa-modal');
     const sel = document.getElementById('wa-model');
     const txt = document.getElementById('wa-text');
-    const prenom = @json($client->prenom);
-    const numero = '221' + @json(preg_replace('/\D/', '', (string) $wa));
+const prenom = @json($client->prenom);
+const numero = '221' + @json(preg_replace('/\D/', '', (string) $wa));
 
     const modeles = {
         rappel: "Bonjour {prenom}, petit rappel : nous vous attendons bientôt chez All in One by Eva. Répondez OUI pour confirmer votre rendez-vous. À bientôt !",
-        merci:  "Bonjour {prenom}, merci pour votre visite chez All in One by Eva. Nous espérons que tout vous a plu. À très bientôt !",
-        anniv:  "Bonjour {prenom}, toute l'équipe de All in One by Eva vous souhaite un très joyeux anniversaire ! Passez nous voir pour une surprise.",
-        libre:  "Bonjour {prenom}, ",
+        merci: "Bonjour {prenom}, merci pour votre visite chez All in One by Eva. Nous espérons que tout vous a plu. À très bientôt !",
+        anniv: "Bonjour {prenom}, toute l'équipe de All in One by Eva vous souhaite un très joyeux anniversaire ! Passez nous voir pour une surprise.",
+        libre: "Bonjour {prenom}, ",
     };
-    const remplir = () => { txt.value = modeles[sel.value].replaceAll('{prenom}', prenom); };
+    const remplir = () => {
+        txt.value = modeles[sel.value].replaceAll('{prenom}', prenom);
+    };
 
-    document.getElementById('open-wa').addEventListener('click', () => { remplir(); dlg.showModal(); });
+    document.getElementById('open-wa').addEventListener('click', () => {
+        remplir();
+        dlg.showModal();
+    });
     sel.addEventListener('change', remplir);
     ['wa-close', 'wa-cancel'].forEach(id => document.getElementById(id).addEventListener('click', () => dlg.close()));
     document.getElementById('wa-send').addEventListener('click', () => {

@@ -6,7 +6,7 @@
             <i data-lucide="menu" class="h-4 w-4"></i>
         </button>
 
-        <div class="truncate text-[18px] font-medium sm:text-[20px]">@yield('page-title', 'Tableau de bord')</div>
+        <div class="truncate text-[18px] font-medium sm:text-[20px]">@yield('page-title', View::yieldContent('header', 'Tableau de bord'))</div>
     </div>
 
     <div class="flex items-center gap-3">
