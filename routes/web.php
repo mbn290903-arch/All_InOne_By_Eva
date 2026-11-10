@@ -1,5 +1,7 @@
+
 <?php
 
+use App\Http\Controllers\CaisseController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CalendrierController;
 use App\Http\Controllers\ClientController;
@@ -8,12 +10,14 @@ use App\Http\Controllers\PrestationController;
 use App\Http\Controllers\RendezVousController;
 use Illuminate\Support\Facades\Route;
 
+// Accueil
 Route::get('/', function () {
     return redirect()->route('login.show');
 });
 
 // Routes pour les visiteurs non connectés
 Route::middleware('guest')->group(function () {
+
     Route::get('/connexion', [AuthController::class, 'showLogin'])
         ->name('login.show');
 
@@ -36,6 +40,7 @@ Route::middleware('auth')->group(function () {
         return view('professionnel.dashboard');
     })->name('professionnel.dashboard');
 
+
     // Gestion des clients
     Route::get('clients/export', [ClientController::class, 'export'])
         ->name('clients.export');
@@ -49,9 +54,6 @@ Route::middleware('auth')->group(function () {
     Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
         ->name('clients.restore');
 
-    // Déconnexion
-    Route::post('/deconnexion', [AuthController::class, 'destroy'])
-        ->name('logout');
 
     // Prestations et forfaits
     Route::middleware('admin')
@@ -95,7 +97,34 @@ Route::middleware('auth')->group(function () {
             Route::delete('/categories/{id}', [PrestationController::class, 'destroy'])
                 ->name('categories.destroy');
         });
+
+
+    // Gestion de la caisse (admin et réceptionniste uniquement)
+    Route::middleware('role:admin,receptionniste')
+        ->prefix('caisse')
+        ->name('caisse.')
+        ->group(function () {
+
+            Route::get('/', [CaisseController::class, 'index'])
+                ->name('index');
+
+            Route::get('/encaisser', [CaisseController::class, 'create'])
+                ->name('create');
+
+            Route::post('/', [CaisseController::class, 'store'])
+                ->name('store');
+
+            Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
+                ->name('annuler');
+        });
+
+
+    // Déconnexion
+    Route::post('/deconnexion', [AuthController::class, 'destroy'])
+        ->name('logout');
+
 });
+
 
 // Gestion des rendez-vous
 Route::middleware('auth')

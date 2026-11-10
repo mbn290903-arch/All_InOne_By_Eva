@@ -1,0 +1,19 @@
+<?php
+namespace App\Http\Middleware;
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class EnsureRole
+{
+    public function handle(Request $request, Closure $next, string ...$roles): Response
+    {
+        abort_unless(
+            in_array($request->user()?->role?->name, $roles, true),
+            403,
+            "Vous n'avez pas accès à cette page."
+        );
+
+        return $next($request);
+    }
+}

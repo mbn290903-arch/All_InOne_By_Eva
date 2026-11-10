@@ -1,3 +1,29 @@
+@php
+    $titrePage = match (true) {
+        request()->routeIs('caisse.create') => 'Nouvel encaissement',
+        request()->routeIs('caisse.*') => 'Caisse',
+
+        // Clients
+        request()->routeIs('clients.create') => 'Nouveau client',
+        request()->routeIs('clients.edit') => 'Modifier un client',
+        request()->routeIs('clients.show') => 'Fiche client',
+        request()->routeIs('clients.*') => 'Clients',
+
+        // Prestations
+        request()->routeIs('prestations.*') => 'Prestations',
+
+        // Rendez-vous
+        request()->routeIs('rendez-vous.*') => 'Rendez-vous',
+
+        request()->routeIs('admin.dashboard'),
+        request()->routeIs('receptionniste.dashboard'),
+        request()->routeIs('professionnel.dashboard'),
+        request()->routeIs('dashboard') => 'Tableau de bord',
+
+        default => 'All in One by Eva',
+    };
+@endphp
+
 <header
     class="sticky top-0 z-20 flex h-[64px] items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur sm:px-7">
     <div class="flex min-w-0 items-center gap-3">
@@ -6,7 +32,8 @@
             <i data-lucide="menu" class="h-4 w-4"></i>
         </button>
 
-        <div class="truncate text-[18px] font-medium sm:text-[20px]">@yield('page-title', View::yieldContent('header', 'Tableau de bord'))</div>
+        <div class="truncate text-[18px] font-medium sm:text-[20px]">
+            {!! html_entity_decode(View::yieldContent('page-title', View::yieldContent('header', $titrePage))) !!}</div>
     </div>
 
     <div class="flex items-center gap-3">
