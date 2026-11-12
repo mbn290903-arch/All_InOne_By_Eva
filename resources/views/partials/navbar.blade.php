@@ -1,3 +1,33 @@
+@php
+    $titrePage = match (true) {
+        request()->routeIs('caisse.create') => 'Nouvel encaissement',
+        request()->routeIs('caisse.*') => 'Caisse',
+
+        // Clients
+        request()->routeIs('clients.create') => 'Nouveau client',
+        request()->routeIs('clients.edit') => 'Modifier un client',
+        request()->routeIs('clients.show') => 'Fiche client',
+        request()->routeIs('clients.*') => 'Clients',
+
+        // Prestations
+        request()->routeIs('prestations.*') => 'Prestations',
+
+        // Rendez-vous
+        request()->routeIs('rendez-vous.*') => 'Rendez-vous',
+
+        request()->routeIs('admin.dashboard'),
+        request()->routeIs('receptionniste.dashboard'),
+        request()->routeIs('professionnel.dashboard'),
+        request()->routeIs('dashboard') => 'Tableau de bord',
+
+        request()->routeIs('employes.create') => 'Nouvel employé',
+request()->routeIs('employes.edit') => 'Modifier un employé',
+request()->routeIs('employes.show') => 'Fiche employé',
+request()->routeIs('employes.*') => 'Employés',
+        default => 'All in One by Eva',
+    };
+@endphp
+
 <header
     class="sticky top-0 z-20 flex h-[64px] items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur sm:px-7">
     <div class="flex min-w-0 items-center gap-3">
@@ -6,18 +36,27 @@
             <i data-lucide="menu" class="h-4 w-4"></i>
         </button>
 
-        <div class="truncate text-[18px] font-medium sm:text-[20px]">@yield('page-title', View::yieldContent('header', 'Tableau de bord'))</div>
+        <div class="truncate text-[18px] font-medium sm:text-[20px]">
+            {!! html_entity_decode(View::yieldContent('page-title', View::yieldContent('header', $titrePage))) !!}</div>
     </div>
 
     <div class="flex items-center gap-3">
-        <label for="recherche-navbar"
-            class="desktop-search flex h-[34px] w-[320px] items-center gap-2 rounded-lg border border-[#ded8d6] px-3 text-[12px] text-[#aaa2a5]">
-            <i data-lucide="search" class="h-3.5 w-3.5"></i>
-            <input type="search" id="recherche-navbar" autocomplete="off"
-                placeholder="Rechercher un client, une prestation..."
-                class="w-full bg-transparent text-[12px] text-gray-700 outline-none placeholder:text-[#aaa2a5]">
-            <span class="ml-auto rounded border px-1 py-0.5 text-[8px]">⌘K</span>
-        </label>
+    @php
+    $surAnniv = request()->routeIs('anniversaires.*');
+    $rechercheActive = $surAnniv || request()->routeIs('clients.index');
+    @endphp
+<form method="GET" action="{{ $surAnniv ? route('anniversaires.index') : route('clients.index') }}" role="search"
+    class="desktop-search flex h-[34px] w-[320px] items-center gap-2 rounded-lg border border-[#ded8d6] px-3 text-[12px] text-[#aaa2a5]">
+    @if ($surAnniv)
+        <input type="hidden" name="tab" value="{{ request('tab', 'aujourdhui') }}">
+    @endif
+    <i data-lucide="search" class="h-3.5 w-3.5"></i>
+    <input type="search" id="recherche-navbar" name="q" autocomplete="off"
+        value="{{ $rechercheActive ? request('q') : '' }}"
+        placeholder="{{ $surAnniv ? 'Rechercher par nom ou téléphone...' : 'Rechercher un client, un téléphone...' }}"
+        class="w-full bg-transparent text-[12px] text-gray-700 outline-none placeholder:text-[#aaa2a5]">
+    <span class="ml-auto rounded border px-1 py-0.5 text-[8px]">⌘K</span>
+</form>
 
         <div class="hidden items-center gap-2 text-[12px] text-[#817a7e] sm:flex">
             <i data-lucide="calendar" class="h-3.5 w-3.5"></i>

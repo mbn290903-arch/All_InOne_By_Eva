@@ -10,16 +10,28 @@
         'anniversaire' => 'Anniversaire proche',
         'archives' => 'Archives',
     ];
-    $url = fn($t) => route('clients.index', array_filter([
-    'tab' => $t,
-    'q' => $q,
-    'tri' => $tri,
-], fn ($value) => $value !== null && $value !== ''));
-    $urlExport = route('clients.export', array_filter([
-    'tab' => $tab,
-    'q' => $q,
-    'tri' => $tri,
-], fn ($value) => $value !== null && $value !== ''));
+    $url = fn($t) => route(
+        'clients.index',
+        array_filter(
+            [
+                'tab' => $t,
+                'q' => $q,
+                'tri' => $tri,
+            ],
+            fn($value) => $value !== null && $value !== '',
+        ),
+    );
+    $urlExport = route(
+        'clients.export',
+        array_filter(
+            [
+                'tab' => $tab,
+                'q' => $q,
+                'tri' => $tri,
+            ],
+            fn($value) => $value !== null && $value !== '',
+        ),
+    );
     $statutStyle = ['actif' => 'bg-emerald-100 text-emerald-800', 'inactif' => 'bg-amber-100 text-amber-800'];
 @endphp
 
