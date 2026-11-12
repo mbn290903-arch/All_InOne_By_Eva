@@ -8,6 +8,7 @@ use App\Http\Controllers\FideliteController;
 use App\Http\Controllers\PrestationController;
 use App\Http\Controllers\RendezVousController;
 use App\Http\Controllers\CaisseController;
+use App\Http\Controllers\DepenseController;
 use App\Http\Controllers\AnniversaireController;
 use App\Http\Controllers\ModeleMessageController;
 use App\Http\Controllers\CampagneController;
@@ -179,18 +180,61 @@ Route::resource('employes', EmployeController::class)
             Route::get('/encaisser', [CaisseController::class, 'create'])
                 ->name('create');
 
+            Route::get('/impayes', [CaisseController::class, 'impayes'])
+                ->name('impayes');
+
             Route::post('/', [CaisseController::class, 'store'])
                 ->name('store');
 
+            Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])
+                ->name('recu');
+
             Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
                 ->name('annuler');
+        });
+
+    // Modes de paiement configurables (admin)
+    Route::middleware('admin')
+        ->prefix('caisse/modes')
+        ->name('caisse.modes.')
+        ->group(function () {
+
+            Route::get('/', [CaisseController::class, 'modes'])
+                ->name('index');
+
+            Route::post('/', [CaisseController::class, 'storeMode'])
+                ->name('store');
+
+            Route::patch('/{mode}', [CaisseController::class, 'toggleMode'])
+                ->name('toggle');
+        });
+
+
+    // Dépenses (admin)
+    Route::middleware('admin')
+        ->prefix('depenses')
+        ->name('depenses.')
+        ->group(function () {
+
+            Route::get('/', [DepenseController::class, 'index'])
+                ->name('index');
+
+            Route::get('/creer', [DepenseController::class, 'create'])
+                ->name('create');
+
+            Route::post('/', [DepenseController::class, 'store'])
+                ->name('store');
+
+            Route::patch('/{depense}/annuler', [DepenseController::class, 'annuler'])
+                ->name('annuler');
+            // Si quelqu'un ouvre l'adresse d'annulation en GET, on le renvoie à la liste
+            Route::get('/{depense}/annuler', fn() => redirect()->route('depenses.index'));
         });
 
 
     // Déconnexion
     Route::post('/deconnexion', [AuthController::class, 'destroy'])
         ->name('logout');
-
 });
 
 

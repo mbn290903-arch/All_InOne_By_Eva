@@ -95,7 +95,7 @@
 
         <div class="nav-label">GESTION</div>
 
-        <a href="#" class="nav-link">
+        <a href="{{route('depenses.index')}}" class="nav-link">
             <i data-lucide="receipt"></i>
             Dépenses
         </a>
