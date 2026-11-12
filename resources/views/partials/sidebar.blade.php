@@ -67,7 +67,6 @@
                 Prestations
             </a>
         @endif
-
         @if (in_array($role, ['admin', 'receptionniste']))
             <a href="{{ route('caisse.index') }}"
                 class="nav-link {{ request()->routeIs('caisse.*') ? 'active' : '' }}">
@@ -88,10 +87,11 @@
             Anniversaires
         </a>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="gem"></i>
-            Fidélité
-        </a>
+       <a href="{{ route('fidelite.index') }}"
+   class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
+    <i data-lucide="gem"></i>
+    Fidélité
+</a>
 
         <div class="nav-label">GESTION</div>
 
