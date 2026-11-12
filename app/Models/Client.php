@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Enums\StatutRendezVous;
@@ -127,15 +126,20 @@ class Client extends Model
         $query->whereNull('archived_at');
     }
 
-    /** Clients dont la dernière prestation terminée date de plus de N semaines. */
-    public function scopeInactifsDepuis(Builder $query, int $semaines): void
-    {
-        $limite = now()->subWeeks($semaines);
+/**
+ * Clients dont la dernière prestation terminée date de plus de N jours.
+ */
+public function scopeInactifsDepuis(Builder $query, int $jours): void
+{
+    $limite = now()->subDays($jours);
 
-        $query->nonArchives()
-            ->whereHas('rendezVous', fn(Builder $q) => $q->where('statut', StatutRendezVous::Termine))
-            ->whereDoesntHave('rendezVous', fn(Builder $q) => $q
-                ->where('statut', StatutRendezVous::Termine)
-                ->where('debut', '>=', $limite));
-    }
+    $query->nonArchives()
+        ->whereHas('rendezVous', fn (Builder $q) =>
+            $q->where('statut', StatutRendezVous::Termine)
+        )
+        ->whereDoesntHave('rendezVous', fn (Builder $q) =>
+            $q->where('statut', StatutRendezVous::Termine)
+              ->where('debut', '>=', $limite)
+        );
+}
 }

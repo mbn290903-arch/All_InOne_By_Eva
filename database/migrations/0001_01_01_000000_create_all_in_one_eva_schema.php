@@ -289,7 +289,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('depenses', function (Blueprint $table) {
+                Schema::create('depenses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('categorie_depense_id')->constrained('categories_depenses')->restrictOnDelete();
             $table->unsignedInteger('montant');
@@ -297,6 +297,9 @@ return new class extends Migration
             $table->string('description');
             $table->string('justificatif_path')->nullable();
             $table->foreignId('enregistre_par')->constrained('users')->restrictOnDelete();
+            $table->timestamp('annule_le')->nullable()->index();
+            $table->foreignId('annule_par')->nullable()->constrained('users')->restrictOnDelete();
+            $table->string('motif_annulation')->nullable();
             $table->timestamps();
         });
 
