@@ -10,6 +10,7 @@ use App\Http\Controllers\CaisseController;
 use App\Http\Controllers\AnniversaireController;
 use App\Http\Controllers\ModeleMessageController;
 use App\Http\Controllers\CampagneController;
+use App\Http\Controllers\EmployeController;
 use Illuminate\Support\Facades\Route;
 
 // Accueil
@@ -93,6 +94,9 @@ Route::middleware('auth')->group(function () {
                 ->name('show');
         });
 
+Route::resource('employes', EmployeController::class)
+    ->parameters(['employes' => 'employe'])
+    ->except(['destroy']);
 
     // Paramètres : modèles de messages WhatsApp
     Route::get('parametres/messages', [ModeleMessageController::class, 'index'])

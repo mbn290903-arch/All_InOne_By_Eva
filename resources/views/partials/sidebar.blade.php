@@ -106,11 +106,15 @@
             <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">2</span>
         </a>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="contact-round"></i>
-            Employés
-        </a>
+            @can('viewAny', App\Models\Employe::class)
+    <a href="{{ route('employes.index') }}"
+        class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
+        <i data-lucide="contact-round"></i>
+        Employés
+    </a>
+@endcan
 
+         
         <div class="nav-label">ADMINISTRATION</div>
 
         <a href="{{ route('parametres.messages') }}" class="nav-link {{ request()->routeIs('parametres.*') ? 'active' : '' }}">

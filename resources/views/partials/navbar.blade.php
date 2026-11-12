@@ -20,6 +20,10 @@
         request()->routeIs('professionnel.dashboard'),
         request()->routeIs('dashboard') => 'Tableau de bord',
 
+        request()->routeIs('employes.create') => 'Nouvel employé',
+request()->routeIs('employes.edit') => 'Modifier un employé',
+request()->routeIs('employes.show') => 'Fiche employé',
+request()->routeIs('employes.*') => 'Employés',
         default => 'All in One by Eva',
     };
 @endphp
