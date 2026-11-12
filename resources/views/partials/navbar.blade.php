@@ -20,6 +20,10 @@
         request()->routeIs('professionnel.dashboard'),
         request()->routeIs('dashboard') => 'Tableau de bord',
 
+        request()->routeIs('employes.create') => 'Nouvel employé',
+request()->routeIs('employes.edit') => 'Modifier un employé',
+request()->routeIs('employes.show') => 'Fiche employé',
+request()->routeIs('employes.*') => 'Employés',
         default => 'All in One by Eva',
     };
 @endphp
@@ -37,14 +41,22 @@
     </div>
 
     <div class="flex items-center gap-3">
-        <label for="recherche-navbar"
-            class="desktop-search flex h-[34px] w-[320px] items-center gap-2 rounded-lg border border-[#ded8d6] px-3 text-[12px] text-[#aaa2a5]">
-            <i data-lucide="search" class="h-3.5 w-3.5"></i>
-            <input type="search" id="recherche-navbar" autocomplete="off"
-                placeholder="Rechercher un client, une prestation..."
-                class="w-full bg-transparent text-[12px] text-gray-700 outline-none placeholder:text-[#aaa2a5]">
-            <span class="ml-auto rounded border px-1 py-0.5 text-[8px]">⌘K</span>
-        </label>
+    @php
+    $surAnniv = request()->routeIs('anniversaires.*');
+    $rechercheActive = $surAnniv || request()->routeIs('clients.index');
+    @endphp
+<form method="GET" action="{{ $surAnniv ? route('anniversaires.index') : route('clients.index') }}" role="search"
+    class="desktop-search flex h-[34px] w-[320px] items-center gap-2 rounded-lg border border-[#ded8d6] px-3 text-[12px] text-[#aaa2a5]">
+    @if ($surAnniv)
+        <input type="hidden" name="tab" value="{{ request('tab', 'aujourdhui') }}">
+    @endif
+    <i data-lucide="search" class="h-3.5 w-3.5"></i>
+    <input type="search" id="recherche-navbar" name="q" autocomplete="off"
+        value="{{ $rechercheActive ? request('q') : '' }}"
+        placeholder="{{ $surAnniv ? 'Rechercher par nom ou téléphone...' : 'Rechercher un client, un téléphone...' }}"
+        class="w-full bg-transparent text-[12px] text-gray-700 outline-none placeholder:text-[#aaa2a5]">
+    <span class="ml-auto rounded border px-1 py-0.5 text-[8px]">⌘K</span>
+</form>
 
         <div class="hidden items-center gap-2 text-[12px] text-[#817a7e] sm:flex">
             <i data-lucide="calendar" class="h-3.5 w-3.5"></i>

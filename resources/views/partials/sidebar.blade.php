@@ -78,15 +78,14 @@
 
         <div class="nav-label">RELATION CLIENT</div>
 
-        <a href="#" class="nav-link">
+        <a href="{{ route('campagnes.index') }}" class="nav-link">
             <i data-lucide="message-circle"></i>
-            WhatsApp &amp; campagnes
+             WhatsApp &amp; campagnes
         </a>
 
-        <a href="#" class="nav-link">
+        <a href="{{ route('anniversaires.index') }}" class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
             <i data-lucide="cake"></i>
             Anniversaires
-            <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">4</span>
         </a>
 
         <a href="#" class="nav-link">
@@ -107,14 +106,18 @@
             <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">2</span>
         </a>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="contact-round"></i>
-            Employés
-        </a>
+            @can('viewAny', App\Models\Employe::class)
+    <a href="{{ route('employes.index') }}"
+        class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
+        <i data-lucide="contact-round"></i>
+        Employés
+    </a>
+@endcan
 
+         
         <div class="nav-label">ADMINISTRATION</div>
 
-        <a href="#" class="nav-link">
+        <a href="{{ route('parametres.messages') }}" class="nav-link {{ request()->routeIs('parametres.*') ? 'active' : '' }}">
             <i data-lucide="settings"></i>
             Paramètres
         </a>

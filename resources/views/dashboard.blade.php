@@ -169,7 +169,7 @@
 
             <nav class="flex-1 overflow-y-auto px-3 pb-4 pt-2">
                 <div class="nav-label">PILOTAGE</div>
-                <a href="{{ route('dashboard') }}"
+                <a href="{{ route('admin.dashboard') }}"
                     class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                     <i data-lucide="layout-dashboard"></i>
                     Tableau de bord
@@ -194,8 +194,14 @@
                 <div class="nav-label">GESTION</div>
                 <a href="#" class="nav-link"><i data-lucide="receipt"></i> Dépenses</a>
                 <a href="#" class="nav-link"><i data-lucide="package"></i> Stocks <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">2</span></a>
-                <a href="#" class="nav-link"><i data-lucide="contact-round"></i> Employés</a>
-
+                <div>
+                    <label class="mb-1 block text-[11px] font-semibold text-muted">Employé</label>
+                    <select name="employe_id" id="employe_id"
+                            class="w-full rounded-lg border border-line px-3 py-2 text-[13px] outline-none focus:border-wine">
+                        <option value="">— Choisir —</option>
+                    </select>
+                </div>
+                
                 <div class="nav-label">ADMINISTRATION</div>
                 <a href="#" class="nav-link"><i data-lucide="settings"></i> Paramètres</a>
             </nav>
@@ -621,7 +627,30 @@
 
     <script>
         lucide.createIcons();
-    </script>
+    
+
+    @push('scripts')
+const champs = ['#debut', '#fin', '#prestation_id'].map(s => document.querySelector(s));
+const select = document.getElementById('employe_id');
+
+async function chargerEmployes() {
+    const [debut, fin, prestation] = champs.map(c => c?.value);
+    if (!debut || !fin) return;
+
+    const params = new URLSearchParams({ debut, fin });
+    if (prestation) params.set('prestation_id', prestation);
+
+    const res = await fetch(`{{ route('employes.disponibles') }}?${params}`, { headers: { Accept: 'application/json' } });
+    const employes = await res.json();
+
+    const actuel = select.value;
+    select.innerHTML = '<option value="">— Choisir —</option>' +
+        employes.map(e => `<option value="${e.id}">${e.nom} (${e.fonction})</option>`).join('');
+    select.value = actuel;
+}
+champs.forEach(c => c?.addEventListener('change', chargerEmployes));
+</script>
+@endpush
 </body>
 
 </html>

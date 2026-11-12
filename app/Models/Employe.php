@@ -1,7 +1,8 @@
 <?php
 
 namespace App\Models;
-
+use App\Enums\StatutRendezVous;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -50,4 +51,26 @@ class Employe extends Model
     {
         $query->where('is_active', true);
     }
+    /**
+ * Prestations réalisées, montant et commission sur une période.
+ * Seuls les rendez-vous « Terminé » comptent.
+ */
+public function performances(CarbonInterface $du, CarbonInterface $au): array
+{
+    $rdvs = $this->rendezVous()
+        ->where('statut', StatutRendezVous::Termine)
+        ->whereBetween('debut', [$du, $au])
+        ->withCount('lignes')
+        ->withSum('lignes', 'prix')
+        ->get();
+
+    $montant = (float) $rdvs->sum('lignes_sum_prix');
+
+    return [
+        'rendez_vous' => $rdvs->count(),
+        'prestations' => (int) $rdvs->sum('lignes_count'),
+        'montant'     => $montant,
+        'commission'  => round($montant * (float) $this->taux_commission / 100, 2),
+    ];
+}
 }
