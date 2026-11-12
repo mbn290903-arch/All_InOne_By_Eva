@@ -1,13 +1,15 @@
-
 <?php
 
-use App\Http\Controllers\CaisseController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CalendrierController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PrestationController;
 use App\Http\Controllers\RendezVousController;
+use App\Http\Controllers\CaisseController;
+use App\Http\Controllers\AnniversaireController;
+use App\Http\Controllers\ModeleMessageController;
+use App\Http\Controllers\CampagneController;
 use Illuminate\Support\Facades\Route;
 
 // Accueil
@@ -55,6 +57,51 @@ Route::middleware('auth')->group(function () {
         ->name('clients.restore');
 
 
+    // Anniversaires
+    Route::get('anniversaires', [AnniversaireController::class, 'index'])
+        ->name('anniversaires.index');
+
+    Route::post('anniversaires/offre', [AnniversaireController::class, 'enregistrerOffre'])
+        ->name('anniversaires.offre');
+
+    Route::post('anniversaires/{client}/traite', [AnniversaireController::class, 'traiter'])
+        ->name('anniversaires.traiter');
+
+    Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
+        ->name('anniversaires.annuler');
+
+
+    // Campagnes WhatsApp : accès administrateur uniquement
+    Route::middleware('admin')
+        ->prefix('campagnes')
+        ->name('campagnes.')
+        ->group(function () {
+
+            Route::get('/', [CampagneController::class, 'index'])
+                ->name('index');
+
+            Route::post('/', [CampagneController::class, 'store'])
+                ->name('store');
+
+            Route::post('/destinataires/{destinataire}/ouvrir', [CampagneController::class, 'ouvrir'])
+                ->name('destinataires.ouvrir');
+
+            Route::patch('/destinataires/{destinataire}/suivi', [CampagneController::class, 'suivi'])
+                ->name('destinataires.suivi');
+
+            Route::get('/{campagne}', [CampagneController::class, 'show'])
+                ->name('show');
+        });
+
+
+    // Paramètres : modèles de messages WhatsApp
+    Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
+        ->name('parametres.messages');
+
+    Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
+        ->name('parametres.messages.update');
+
+
     // Prestations et forfaits
     Route::middleware('admin')
         ->prefix('prestations')
@@ -99,7 +146,7 @@ Route::middleware('auth')->group(function () {
         });
 
 
-    // Gestion de la caisse (admin et réceptionniste uniquement)
+    // Gestion de la caisse (admin et réceptionniste)
     Route::middleware('role:admin,receptionniste')
         ->prefix('caisse')
         ->name('caisse.')

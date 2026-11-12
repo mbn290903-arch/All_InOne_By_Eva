@@ -169,7 +169,7 @@
 
             <nav class="flex-1 overflow-y-auto px-3 pb-4 pt-2">
                 <div class="nav-label">PILOTAGE</div>
-                <a href="{{ route('dashboard') }}"
+                <a href="{{ route('admin.dashboard') }}"
                     class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                     <i data-lucide="layout-dashboard"></i>
                     Tableau de bord

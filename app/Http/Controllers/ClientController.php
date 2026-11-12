@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\StatutRendezVous;
 use App\Models\Client;
+use App\Models\ModeleMessage;
+use App\Services\WhatsAppService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ClientController extends Controller
@@ -23,13 +24,7 @@ class ClientController extends Controller
         $tab = $request->get('tab', 'tous');
         $tri = $request->get('tri', 'recent');
 
-        $clients = $this->filtered($request)
-            ->withCount(['rendezVous as visites' => fn($q) => $q->where('statut', StatutRendezVous::Termine)])
-            ->withMax(['rendezVous as derniere_visite' => fn($q) => $q->where('statut', StatutRendezVous::Termine)], 'debut')
-            ->withSum(['paiements as total_depense' => fn($q) => $q->whereNull('annule_le')], 'montant_paye')
-            ->withSum('mouvementsPoints as points', 'points')
-            ->paginate(20)
-            ->withQueryString();
+        $clients = $this->filtered($request)->paginate(20)->withQueryString();
 
         $actifs = Client::whereNull('archived_at');
         $stats = [
@@ -56,7 +51,16 @@ class ClientController extends Controller
 
     public function show(Client $client)
     {
-        return view('clients.show', compact('client'));
+        $wa   = $this->messagesWhatsApp($client);
+        $user = auth()->user();
+
+        return view('clients.show', [
+            'client'     => $client,
+            'messagesWa' => $wa['messages'],
+            'rdvTrouve'  => $wa['rdv_trouve'],
+            'waNumero'   => WhatsAppService::normaliser($client->whatsapp ?: $client->telephone),
+            'peutWa'     => $user->isAdmin() || $user->hasPermission('whatsapp.envoyer'),
+        ]);
     }
 
     /* ------------------------------------------------------------------
@@ -66,6 +70,7 @@ class ClientController extends Controller
     {
         $data = $this->validated($request);
 
+        // BUG 1 corrigé : « Créer quand même » (force=1) est enfin lu.
         if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'])) {
             return back()->withInput()->with('doublon', $this->infosDoublon($existant));
         }
@@ -76,6 +81,7 @@ class ClientController extends Controller
             'date_inscription'   => now()->toDateString(),
             'consent_promotions' => $consent,
             'consent_at'         => $consent ? now() : null,
+            'consent_par'        => $consent ? auth()->id() : null,   // BUG 4 corrigé
         ]);
 
         return redirect()->route('clients.index')->with('status', [
@@ -102,7 +108,7 @@ class ClientController extends Controller
 
         $data = $this->validated($request);
 
-        if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'], (int) $client->getKey())) {
+        if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'], $client->id)) {
             return back()->withInput()->with('doublon', $this->infosDoublon($existant));
         }
 
@@ -111,13 +117,14 @@ class ClientController extends Controller
         if ($consent !== (bool) $client->consent_promotions) {
             $data += [
                 'consent_promotions' => $consent,
-                'consent_at'         => $consent ? now() : null,
+                'consent_at'         => now(),
+                'consent_par'        => auth()->id(),
             ];
         }
 
         $client->update($data);
 
-        return redirect()->route('clients.index')->with('status', [
+        return redirect()->route('clients.show', $client)->with('status', [
             'Fiche mise à jour',
             "{$client->prenom} {$client->nom} ({$this->code($client)}).",
         ]);
@@ -133,7 +140,7 @@ class ClientController extends Controller
         $client->update([
             'statut'      => 'inactif',
             'archived_at' => now(),
-            'archived_by' => Auth::id(),
+            'archived_by' => auth()->id(),
         ]);
 
         return redirect()->route('clients.index')->with('status', [
@@ -165,7 +172,7 @@ class ClientController extends Controller
         $filename = 'clients-' . now()->format('Ymd-His') . '.csv';
 
         Log::info('Export clients CSV', [
-            'user_id' => Auth::id(),
+            'user_id' => auth()->id(),
             'filtres' => $request->only(['q', 'tab', 'tri']),
         ]);
 
@@ -175,22 +182,9 @@ class ClientController extends Controller
 
             $put = fn(array $row) => fputcsv($out, array_map([$this, 'csvSafe'], $row), ';', '"', '');
 
-            $put([
-                'Identifiant',
-                'Prénom',
-                'Nom',
-                'Public',
-                'Téléphone',
-                'WhatsApp',
-                'E-mail',
-                'Date de naissance',
-                'Date inscription',
-                'Canal préféré',
-                'Consentement promo',
-                'Date consentement',
-                'Statut',
-                'Archivé le'
-            ]);
+            $put(['Identifiant', 'Prénom', 'Nom', 'Public', 'Téléphone', 'WhatsApp', 'E-mail',
+                  'Date de naissance', 'Date inscription', 'Canal préféré', 'Consentement promo',
+                  'Date consentement', 'Statut', 'Archivé le']);
 
             $query->chunkById(500, function ($rows) use ($put) {
                 foreach ($rows as $c) {
@@ -221,6 +215,58 @@ class ClientController extends Controller
      |  OUTILS PRIVÉS
      * ================================================================*/
 
+    /**
+     * Messages WhatsApp prêts à l'emploi pour cette cliente (modèles modifiables dans Paramètres).
+     * Le rappel de rendez-vous reprend le prochain rendez-vous à venir (date, heure, prestations).
+     * Promotion et fidélisation : réservés aux clientes qui ont accepté les promotions.
+     */
+    private function messagesWhatsApp(Client $client): array
+    {
+        $consent = (bool) $client->consent_promotions;
+        $titres  = ModeleMessage::pluck('titre', 'type');
+
+        $rdv = DB::table('rendez_vous')
+            ->where('client_id', $client->id)
+            ->whereIn('statut', ['en_attente', 'confirme'])
+            ->where('debut', '>=', now())
+            ->orderBy('debut')
+            ->first();
+
+        $vars = ['prenom' => $client->prenom, 'nom' => $client->nom];
+
+        if ($rdv) {
+            $debut      = Carbon::parse($rdv->debut);
+            $prestation = DB::table('rendez_vous_service')->where('rendez_vous_id', $rdv->id)->pluck('libelle')->implode(', ');
+            $vars += [
+                'date'       => $debut->translatedFormat('l j F'),
+                'heure'      => $debut->format('H:i'),
+                'prestation' => $prestation !== '' ? $prestation : 'votre prestation',
+            ];
+        }
+
+        $offre = trim((string) DB::table('parametres_salon')->where('cle', 'offre_anniversaire')->value('valeur')) ?: null;
+
+        $messages = [];
+        foreach (array_keys(WhatsAppService::DEFAUTS) as $type) {
+            $texte = $type === 'anniversaire'
+                ? WhatsAppService::anniversaire($client->prenom, $consent ? $offre : null)
+                : WhatsAppService::rendre(WhatsAppService::gabarit($type), $vars);
+
+            $autorise = in_array($type, ['promotion', 'fidelisation'], true) ? $consent : true;
+
+            $messages[$type] = [
+                'titre'    => $titres[$type] ?? ucfirst($type),
+                'texte'    => $texte,
+                'autorise' => $autorise,
+                'raison'   => $autorise ? null : 'pas de consentement aux promotions',
+            ];
+        }
+
+        $messages['libre'] = ['titre' => 'Message libre', 'texte' => "Bonjour {$client->prenom}, ", 'autorise' => true, 'raison' => null];
+
+        return ['messages' => $messages, 'rdv_trouve' => (bool) $rdv];
+    }
+
     /** Requête filtrée, partagée par la liste et l'export. */
     private function filtered(Request $request): Builder
     {
@@ -237,11 +283,17 @@ class ClientController extends Controller
         if ($q !== '') {
             $digits = preg_replace('/\D/', '', $q);
             $query->where(function ($w) use ($q, $digits) {
-                $w->where('prenom', 'like', "%{$q}%")->orWhere('nom', 'like', "%{$q}%");
+                // Chaque mot saisi doit se retrouver dans le prénom OU le nom :
+                // « Mariama Ba » fonctionne (avant, seul un prénom ou un nom seul marchait).
+                $w->where(function ($n) use ($q) {
+                    foreach (preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY) as $mot) {
+                        $n->where(fn($x) => $x->where('prenom', 'like', "%{$mot}%")->orWhere('nom', 'like', "%{$mot}%"));
+                    }
+                });
 
                 if ($digits !== '') {
                     $w->orWhere('telephone', 'like', "%{$digits}%")
-                        ->orWhere('whatsapp', 'like', "%{$digits}%");
+                      ->orWhere('whatsapp', 'like', "%{$digits}%");
                 }
                 // Recherche par identifiant : CL-000012 ou CL000012
                 if (preg_match('/^CL-?0*(\d+)$/i', $q, $m)) {
@@ -250,15 +302,9 @@ class ClientController extends Controller
             });
         }
 
-        if ($tab === 'actifs') {
-            $query->where('statut', 'actif');
-        }
-        if ($tab === 'inactifs') {
-            $query->where('statut', 'inactif');
-        }
-        if ($tab === 'anniversaire') {
-            $this->anniversaire($query);
-        }
+        if ($tab === 'actifs')       { $query->where('statut', 'actif'); }
+        if ($tab === 'inactifs')     { $query->where('statut', 'inactif'); }
+        if ($tab === 'anniversaire') { $this->anniversaire($query); }
 
         $tri === 'nom'
             ? $query->orderBy('nom')->orderBy('prenom')
@@ -268,7 +314,10 @@ class ClientController extends Controller
     }
 
     /**
-     * Anniversaires des 30 prochains jours, en SQL.
+     * Anniversaires des 30 prochains jours, en SQL (plus de ->get() sur toute la table).
+     * On compare le « mois-jour » à la liste des 31 prochains jours du calendrier réel :
+     * pas de décalage au 29 février (une personne née un 29/02 apparaît le 29/02 les
+     * années bissextiles ; en année normale, ajoutez '02-28' si vous voulez la fêter).
      */
     private function anniversaire(Builder $query): Builder
     {
@@ -284,7 +333,7 @@ class ClientController extends Controller
             ->whereRaw("{$expr} in (" . implode(',', array_fill(0, count($jours), '?')) . ')', $jours);
     }
 
-    /** Normalise puis valide. */
+    /** Normalise puis valide. BUG 2 et 3 : noms de champs uniques + champ `public`. */
     private function validated(Request $request): array
     {
         $tel = preg_replace('/\D/', '', (string) $request->telephone);
@@ -326,7 +375,7 @@ class ClientController extends Controller
     private function infosDoublon(Client $c): array
     {
         return [
-            'id'   => $c->getKey(),
+            'id'   => $c->id,
             'nom'  => trim($c->prenom . ' ' . $c->nom),
             'code' => $this->code($c),
         ];
@@ -334,7 +383,7 @@ class ClientController extends Controller
 
     private function code(Client $c): string
     {
-        return 'CL-' . str_pad((string) $c->getKey(), 6, '0', STR_PAD_LEFT);
+        return 'CL-' . str_pad($c->id, 6, '0', STR_PAD_LEFT);
     }
 
     /** Neutralise l'injection de formules (=, +, -, @, tab, retour chariot) dans Excel/Sheets. */
