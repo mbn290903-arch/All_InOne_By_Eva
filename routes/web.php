@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CalendrierController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FideliteController;
 use App\Http\Controllers\PrestationController;
 use App\Http\Controllers\RendezVousController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,22 @@ Route::middleware('guest')->group(function () {
 
 // Routes pour les utilisateurs connectés
 Route::middleware('auth')->group(function () {
+
+    // Programme de fidélité
+    Route::middleware('admin')->get('/fidelite', [FideliteController::class, 'index'])
+        ->name('fidelite.index');
+
+    Route::middleware('admin')->post('/fidelite/regles', [FideliteController::class, 'storeRegle'])
+        ->name('fidelite.regles.store');
+
+        Route::put('/fidelite/regles/{regle}', [FideliteController::class, 'updateRegle'])
+    ->name('fidelite.regles.update');
+
+Route::delete('/fidelite/recompenses/{recompense}', [FideliteController::class, 'destroyRecompense'])
+    ->name('fidelite.recompenses.destroy');
+
+    Route::middleware('admin')->post('/fidelite/recompenses', [FideliteController::class, 'storeRecompense'])
+        ->name('fidelite.recompenses.store');
 
     // Tableaux de bord
     Route::get('/dashboard', [DashboardController::class, 'admin'])

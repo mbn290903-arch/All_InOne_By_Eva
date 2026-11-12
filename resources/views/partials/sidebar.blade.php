@@ -49,7 +49,7 @@
             Clients
         </a>
 
-        <a href="#" class="nav-link">
+        <a href="{{route('prestations.index')}}" class="nav-link">
             <i data-lucide="sparkles"></i>
             Prestations
         </a>
@@ -72,10 +72,11 @@
             <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">4</span>
         </a>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="gem"></i>
-            Fidélité
-        </a>
+       <a href="{{ route('fidelite.index') }}"
+   class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
+    <i data-lucide="gem"></i>
+    Fidélité
+</a>
 
         <div class="nav-label">GESTION</div>
 
