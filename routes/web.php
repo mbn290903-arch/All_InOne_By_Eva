@@ -1,4 +1,5 @@
 <?php
+use App\Http\Controllers\RapportController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CalendrierController;
 use App\Http\Controllers\ClientController;
@@ -226,6 +227,21 @@ Route::middleware('auth')->group(function () {
                 ->name('annuler');
 
             Route::get('/{depense}/annuler', fn () => redirect()->route('depenses.index'));
+        });
+            // Rapports et statistiques (admin)
+    Route::middleware('admin')
+        ->prefix('rapports')
+        ->name('rapports.')
+        ->group(function () {
+
+            Route::get('/', [RapportController::class, 'index'])
+                ->name('index');
+
+            Route::get('/imprimer', [RapportController::class, 'imprimer'])
+                ->name('imprimer');
+
+            Route::get('/export', [RapportController::class, 'exporter'])
+                ->name('export');
         });
 
     // Déconnexion

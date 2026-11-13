@@ -41,10 +41,13 @@
             Tableau de bord
         </a>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="chart-no-axes-column-increasing"></i>
-            Rapports
-        </a>
+       @if (auth()->user()->role->name === 'admin')
+    <a href="{{ route('rapports.index') }}"
+        class="nav-link {{ request()->routeIs('rapports.*') ? 'active' : '' }}">
+        <i data-lucide="chart-no-axes-column-increasing"></i>
+        Rapports
+    </a>
+@endif
 
         <div class="nav-label">ACTIVITÉ</div>
 
