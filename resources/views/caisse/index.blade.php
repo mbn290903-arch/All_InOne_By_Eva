@@ -18,11 +18,10 @@
                 </p>
             </div>
 
-            <a href="{{ route('caisse.create') }}"
-                class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#76243D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5d1c30]">
-                <i data-lucide="plus" class="h-4 w-4"></i>
-                Nouvel encaissement
-            </a>
+            @if (auth()->user()->aPermission('paiements.enregistrer'))
+                <a href="{{ route('caisse.create') }}" class="rounded-lg bg-wine px-4 py-2 text-sm font-medium text-white">+
+                    Encaisser</a>
+            @endif
         </div>
 
         {{-- Messages --}}
