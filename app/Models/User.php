@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Models;
-
 use App\Enums\Permission as PermissionEnum;
 use App\Enums\Role as RoleEnum;
 use Database\Factories\UserFactory;
@@ -52,7 +50,7 @@ class User extends Authenticatable
     /** Peut créer ou déplacer un rendez-vous dans le passé. */
     public function peutPlanifierDansLePasse(): bool
     {
-        return $this->isAdmin() || $this->hasPermission('rendez_vous.passe');
+        return $this->isAdmin() || $this->hasPermission('rdv.passe');
     }
 
     public function hasPermission(PermissionEnum|string $permission): bool

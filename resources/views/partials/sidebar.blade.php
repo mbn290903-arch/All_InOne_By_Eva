@@ -23,11 +23,12 @@
             $estPro = $role === 'professionnel';
             $adminOuReception = $estAdmin || $estReception;
 
-            $routeDashboard = [
-                'receptionniste' => 'receptionniste.dashboard',
-                'professionnel' => 'professionnel.dashboard',
-                'admin' => 'admin.dashboard',
-            ][$role] ?? 'admin.dashboard';
+            $routeDashboard =
+                [
+                    'receptionniste' => 'receptionniste.dashboard',
+                    'professionnel' => 'professionnel.dashboard',
+                    'admin' => 'admin.dashboard',
+                ][$role] ?? 'admin.dashboard';
 
             $dashboardActif = request()->routeIs(
                 'admin.dashboard',
@@ -55,18 +56,19 @@
         {{-- ACTIVITÉ --}}
         <div class="nav-label">ACTIVITÉ</div>
 
-        <a href="{{ route('rendez-vous.index') }}"
-            class="nav-link {{ request()->routeIs('rendez-vous.*') ? 'active' : '' }}">
+        <a href="{{ $estPro ? route('professionnel.planning') : route('rendez-vous.index') }}"
+            class="nav-link {{ request()->routeIs('rendez-vous.*', 'professionnel.planning', 'professionnel.rendez-vous.*') ? 'active' : '' }}">
             <i data-lucide="calendar"></i>
             {{ $estPro ? 'Mon planning' : 'Rendez-vous' }}
         </a>
-
-        <a href="{{ route('clients.index') }}" class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
-            <i data-lucide="users"></i>
-            Clients
-        </a>
-
         @if ($adminOuReception)
+            <a href="{{ route('clients.index') }}"
+                class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
+                <i data-lucide="users"></i>
+                Clients
+            </a>
+
+
             <a href="{{ $estAdmin ? route('prestations.index') : route('catalogue.index') }}"
                 class="nav-link {{ request()->routeIs('prestations.*', 'catalogue.*') ? 'active' : '' }}">
                 <i data-lucide="sparkles"></i>
@@ -127,7 +129,8 @@
                     <i data-lucide="package"></i>
                     Stocks
                     @if ($nbAlertes > 0)
-                        <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">{{ $nbAlertes }}</span>
+                        <span
+                            class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">{{ $nbAlertes }}</span>
                     @endif
                 </a>
             @endif

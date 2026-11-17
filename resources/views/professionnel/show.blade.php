@@ -58,18 +58,14 @@
         @endif
     </div>
 
-    <div class="space-y-3 rounded-xl border border-line bg-white p-5 shadow-soft">
-        <div class="text-[12px] font-semibold uppercase tracking-wide text-muted">Cliente</div>
-        <div class="text-[18px] font-semibold">{{ $rdv->prenom }} {{ $rdv->nom }}</div>
-        <dl class="space-y-2 text-[13px]">
-            <div><dt class="text-[12px] text-muted">Téléphone</dt><dd>{{ $rdv->telephone }}</dd></div>
-            @if ($rdv->preferences_prestations)
-                <div><dt class="text-[12px] text-muted">Préférences</dt><dd>{{ $rdv->preferences_prestations }}</dd></div>
-            @endif
-            @if ($rdv->notes)
-                <div><dt class="text-[12px] text-muted">Notes</dt><dd class="whitespace-pre-line">{{ $rdv->notes }}</dd></div>
-            @endif
-        </dl>
+<div class="space-y-3 rounded-xl border border-line bg-white p-5 shadow-soft">
+    <div class="text-[12px] font-semibold uppercase tracking-wide text-muted">
+        Client(e)
     </div>
+
+    <div class="text-[18px] font-semibold">
+        {{ $rdv->prenom }} {{ $rdv->nom }}
+    </div>
+</div>
 </div>
 @endsection

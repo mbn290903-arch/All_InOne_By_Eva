@@ -54,6 +54,7 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     // Route de secours pour le catalogue visible par la réception
     Route::get('/catalogue', [PrestationController::class, 'index'])
+        ->middleware('role:admin,receptionniste,professionnel')
         ->name('catalogue.index');
 
     // Programme de fidélité : administrateur uniquement
@@ -77,11 +78,13 @@ Route::middleware('auth')->group(function () {
 
     // Tableaux de bord
     Route::get('/dashboard', [DashboardController::class, 'admin'])
+        ->middleware('admin')
         ->name('admin.dashboard');
 
     Route::get('/receptionniste/dashboard', function () {
         $user = auth()->user();
-        $peutEncaisser = in_array($user->role->name, ['admin', 'receptionniste']);
+        $peutEncaisser = $user->isAdmin()
+            || $user->hasPermission('paiements.enregistrer');
 
         $now = now();
         $debutJour = $now->copy()->startOfDay();
@@ -96,14 +99,19 @@ Route::middleware('auth')->group(function () {
         $totalJour = $rdvJour->count();
         $termines = $rdvJour->where('statut', 'termine')->count();
         $restants = $rdvJour->where('fin', '>=', $now)
-                            ->whereNotIn('statut', ['termine', 'annule'])
-                            ->count();
-        
+            ->whereNotIn('statut', ['termine', 'annule'])
+            ->count();
+
         $enAttente = $rdvJour->where('statut', 'en_attente')->count();
         $clientsDuJour = \App\Models\Client::whereBetween('created_at', [$debutJour, $finJour])->count();
 
         // Liste des rendez-vous du jour pour le planning
-        $rdvDuJour = \App\Models\RendezVous::with(['client', 'prestation', 'employe'])
+        $rdvDuJour = \App\Models\RendezVous::with([
+            'client',
+            'employe',
+            'lignes.service',
+            'lignes.forfait',
+        ])
             ->whereBetween('debut', [$debutJour, $finJour])
             ->orderBy('debut', 'asc')
             ->get();
@@ -115,13 +123,18 @@ Route::middleware('auth')->group(function () {
             ->get();
 
         // Rappels WhatsApp pour les rendez-vous de demain
-        $rdvDemain = \App\Models\RendezVous::with(['client', 'prestation', 'employe'])
+        $rdvDemain = \App\Models\RendezVous::with([
+            'client',
+            'employe',
+            'lignes.service',
+            'lignes.forfait',
+        ])
             ->whereBetween('debut', [$demainDebut, $demainFin])
             ->where('statut', '!=', 'annule')
             ->orderBy('debut', 'asc')
             ->get();
 
-        $rappelsDemain = $rdvDemain->map(function($rdv) {
+        $rappelsDemain = $rdvDemain->map(function ($rdv) {
             return ['rdv' => $rdv];
         });
 
@@ -132,7 +145,7 @@ Route::middleware('auth')->group(function () {
                 ->whereDay('date_naissance', $now->day)
                 ->get();
 
-            $anniversaires = $clientsAnniv->map(function($client) use ($now) {
+            $anniversaires = $clientsAnniv->map(function ($client) use ($now) {
                 $age = $client->date_naissance ? \Carbon\Carbon::parse($client->date_naissance)->age : null;
                 return [
                     'client' => $client,
@@ -143,7 +156,7 @@ Route::middleware('auth')->group(function () {
         }
 
         // Fonction pour calculer la durée en minutes d'un rendez-vous
-        $minutes = function($rdv) {
+        $minutes = function ($rdv) {
             if (isset($rdv->debut) && isset($rdv->fin)) {
                 return \Carbon\Carbon::parse($rdv->debut)->diffInMinutes(\Carbon\Carbon::parse($rdv->fin));
             }
@@ -181,37 +194,60 @@ Route::middleware('auth')->group(function () {
             'mesPaiements',
             'f'
         ));
-    })->name('receptionniste.dashboard');
+    })->middleware('role:admin,receptionniste')
+        ->name('receptionniste.dashboard');
 
-    Route::get('/professionnel/dashboard', function () {
-        return view('professionnel.dashboard');
-    })->name('professionnel.dashboard');
+    // Tableau de bord du professionnel
+    Route::get('/professionnel/dashboard', [ProfessionnelController::class, 'dashboard'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.dashboard');
 
-    // Gestion des clients
-    Route::get('clients/export', [ClientController::class, 'export'])
-        ->name('clients.export');
+    // Planning du professionnel
+    Route::get('/professionnel/planning', [ProfessionnelController::class, 'planning'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.planning');
 
-    Route::resource('clients', ClientController::class)
-        ->except(['destroy']);
+    // Détails d'un rendez-vous du professionnel
+    Route::get('/professionnel/rendez-vous/{rendezVous}', [ProfessionnelController::class, 'show'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.rendez-vous.show');
 
-    Route::post('clients/{client}/archive', [ClientController::class, 'archive'])
-        ->name('clients.archive');
+    // Changement de statut d'un rendez-vous
+    Route::patch('/professionnel/rendez-vous/{rendezVous}/statut', [ProfessionnelController::class, 'statut'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.rendez-vous.statut');
 
-    Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
-        ->name('clients.restore');
+    // Gestion des clients : administrateur et réceptionniste
+    Route::middleware('role:admin,receptionniste')->group(function () {
 
-    // Anniversaires
-    Route::get('anniversaires', [AnniversaireController::class, 'index'])
-        ->name('anniversaires.index');
+        Route::get('clients/export', [ClientController::class, 'export'])
+            ->name('clients.export');
 
-    Route::post('anniversaires/offre', [AnniversaireController::class, 'enregistrerOffre'])
-        ->name('anniversaires.offre');
+        Route::resource('clients', ClientController::class)
+            ->except(['destroy']);
 
-    Route::post('anniversaires/{client}/traite', [AnniversaireController::class, 'traiter'])
-        ->name('anniversaires.traiter');
+        Route::post('clients/{client}/archive', [ClientController::class, 'archive'])
+            ->name('clients.archive');
 
-    Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
-        ->name('anniversaires.annuler');
+        Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
+            ->name('clients.restore');
+    });
+
+    // Anniversaires : administrateur et réceptionniste
+    Route::middleware('role:admin,receptionniste')->group(function () {
+
+        Route::get('anniversaires', [AnniversaireController::class, 'index'])
+            ->name('anniversaires.index');
+
+        Route::post('anniversaires/offre', [AnniversaireController::class, 'enregistrerOffre'])
+            ->name('anniversaires.offre');
+
+        Route::post('anniversaires/{client}/traite', [AnniversaireController::class, 'traiter'])
+            ->name('anniversaires.traiter');
+
+        Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
+            ->name('anniversaires.annuler');
+    });
 
     // Campagnes WhatsApp : administrateur uniquement
     Route::middleware('admin')
@@ -235,17 +271,23 @@ Route::middleware('auth')->group(function () {
                 ->name('show');
         });
 
-    // Gestion des employés
-    Route::resource('employes', EmployeController::class)
-        ->parameters(['employes' => 'employe'])
-        ->except(['destroy']);
+    // Gestion des employés : administrateur uniquement
+    Route::middleware('admin')->group(function () {
 
-    // Paramètres : modèles de messages WhatsApp
-    Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
-        ->name('parametres.messages');
+        Route::resource('employes', EmployeController::class)
+            ->parameters(['employes' => 'employe'])
+            ->except(['destroy']);
+    });
 
-    Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
-        ->name('parametres.messages.update');
+    // Paramètres des modèles WhatsApp : administrateur uniquement
+    Route::middleware('admin')->group(function () {
+
+        Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
+            ->name('parametres.messages');
+
+        Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
+            ->name('parametres.messages.update');
+    });
 
     // Prestations et forfaits
     Route::middleware('admin')
@@ -290,30 +332,41 @@ Route::middleware('auth')->group(function () {
                 ->name('categories.destroy');
         });
 
+
     // Gestion de la caisse
     Route::middleware('role:admin,receptionniste')
         ->prefix('caisse')
         ->name('caisse.')
         ->group(function () {
 
+            // Consultation de la caisse
             Route::get('/', [CaisseController::class, 'index'])
                 ->name('index');
 
-            Route::get('/encaisser', [CaisseController::class, 'create'])
-                ->name('create');
-
+            // Consultation des impayés
             Route::get('/impayes', [CaisseController::class, 'impayes'])
                 ->name('impayes');
 
-            Route::post('/', [CaisseController::class, 'store'])
-                ->name('store');
-
+            // Consultation des reçus
             Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])
                 ->name('recu');
 
+            // Actions nécessitant une permission
+            Route::middleware('permission:paiements.enregistrer')->group(function () {
+
+                Route::get('/encaisser', [CaisseController::class, 'create'])
+                    ->name('create');
+
+                Route::post('/', [CaisseController::class, 'store'])
+                    ->name('store');
+            });
+
+            // Annulation : permission spécifique
             Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
+                ->middleware('permission:paiements.annuler')
                 ->name('annuler');
         });
+
 
     // Modes de paiement configurables
     Route::middleware('admin')
@@ -375,7 +428,7 @@ Route::middleware('auth')->group(function () {
 
 
 // Gestion des rendez-vous
-Route::middleware(['auth', 'role:admin,receptionniste,professionnel'])
+Route::middleware(['auth', 'role:admin,receptionniste'])
     ->prefix('rendez-vous')
     ->name('rendez-vous.')
     ->group(function () {

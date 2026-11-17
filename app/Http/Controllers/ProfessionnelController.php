@@ -51,8 +51,16 @@ class ProfessionnelController extends Controller
             ->join('clients as c', 'c.id', '=', 'r.client_id')
             ->where('r.employe_id', $employeId)
             ->where('r.statut', '!=', 'annule')
-            ->select('r.id', 'r.debut', 'r.fin', 'r.statut', 'r.zone', 'r.commentaire',
-                     'c.prenom', 'c.nom', 'c.telephone');
+            ->select(
+                'r.id',
+                'r.debut',
+                'r.fin',
+                'r.statut',
+                'r.zone',
+                'r.commentaire',
+                'c.prenom',
+                'c.nom'
+            );
     }
 
     private function enrichir($rdvs)
@@ -60,7 +68,7 @@ class ProfessionnelController extends Controller
         $ids = $rdvs->pluck('id')->all();
         $services = $ids
             ? DB::table('rendez_vous_service')->whereIn('rendez_vous_id', $ids)
-                ->get(['rendez_vous_id', 'libelle', 'duree_minutes'])->groupBy('rendez_vous_id')
+            ->get(['rendez_vous_id', 'libelle', 'duree_minutes'])->groupBy('rendez_vous_id')
             : collect();
 
         return $rdvs->map(function ($r) use ($services) {
@@ -87,7 +95,7 @@ class ProfessionnelController extends Controller
         return view('professionnel.dashboard', [
             'employeLie' => true,
             'rdvsJour'   => $rdvsJour,
-            'prochain'   => $rdvsJour->first(fn ($r) => $r->statut !== 'termine' && $r->fin->isFuture()),
+            'prochain'   => $rdvsJour->first(fn($r) => $r->statut !== 'termine' && $r->fin->isFuture()),
             'stats'      => [
                 'aujourdhui' => $rdvsJour->count(),
                 'a_faire'    => $rdvsJour->where('statut', '!=', 'termine')->count(),
@@ -113,7 +121,7 @@ class ProfessionnelController extends Controller
 
         $parJour = $this->enrichir(
             $this->base($id)->whereBetween('r.debut', [$debut, $fin])->orderBy('r.debut')->get()
-        )->groupBy(fn ($r) => $r->debut->toDateString());
+        )->groupBy(fn($r) => $r->debut->toDateString());
 
         return view('professionnel.planning', [
             'employeLie' => true,
@@ -128,7 +136,7 @@ class ProfessionnelController extends Controller
         $id = $this->verifierProprietaire($rendezVous);
 
         $rdv = $this->enrichir(
-            $this->base($id)->addSelect('c.preferences_prestations', 'c.notes', 'c.public')
+            $this->base($id)
                 ->where('r.id', $rendezVous->id)->get()
         )->first();
         abort_unless($rdv, 404);
