@@ -68,8 +68,7 @@ class DashboardController extends Controller
         // RENDEZ-VOUS À VENIR
         // -------------------------------------------------
 
-        $annule = StatutRendezVous::Annule->value;
-
+        $annule = StatutRendezVous::Annule->value; 
         $aVenir = RendezVous::query()
             ->whereBetween('debut', [$maintenant, $maintenant->addDays(7)])
             ->where('statut', '!=', $annule)

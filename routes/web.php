@@ -373,28 +373,25 @@ Route::middleware('auth')->group(function () {
         ->name('logout');
 });
 
+
 // Gestion des rendez-vous
-Route::middleware('auth')
+Route::middleware(['auth', 'role:admin,receptionniste,professionnel'])
     ->prefix('rendez-vous')
     ->name('rendez-vous.')
     ->group(function () {
 
-        // Le professionnel passe par /professionnel/... (voir plus haut)
-        Route::middleware('role:admin,receptionniste')->group(function () {
+        Route::get('/', [CalendrierController::class, 'index'])
+            ->name('index');
 
-            Route::get('/', [CalendrierController::class, 'index'])
-                ->name('index');
+        Route::get('/creer', [RendezVousController::class, 'create'])
+            ->name('create');
 
-            Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])
-                ->name('statut');
+        Route::post('/', [RendezVousController::class, 'store'])
+            ->name('store');
 
-            Route::get('/creer', [RendezVousController::class, 'create'])
-                ->name('create');
+        Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])
+            ->name('statut');
 
-            Route::post('/', [RendezVousController::class, 'store'])
-                ->name('store');
-
-            Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])
-                ->name('deplacer');
-        });
+        Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])
+            ->name('deplacer');
     });
