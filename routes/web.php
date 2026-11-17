@@ -12,6 +12,9 @@ use App\Http\Controllers\AnniversaireController;
 use App\Http\Controllers\ModeleMessageController;
 use App\Http\Controllers\CampagneController;
 use App\Http\Controllers\EmployeController;
+use App\Http\Controllers\MouvementStockController;
+use App\Http\Controllers\ProduitController;
+use App\Http\Controllers\ProfessionnelController;
 use Illuminate\Support\Facades\Route;
 
 // Accueil
@@ -32,7 +35,137 @@ Route::middleware('guest')->group(function () {
 // Routes utilisateurs connectés
 Route::middleware('auth')->group(function () {
 
-    // Programme de fidélité : administrateur uniquement
+    // ═════════════════════════════════════════════════════════════
+    // TOUS LES RÔLES CONNECTÉS
+    // ═════════════════════════════════════════════════════════════
+
+    // Tableaux de bord : un par rôle
+    Route::get('/dashboard', [DashboardController::class, 'admin'])
+        ->middleware('admin')
+        ->name('admin.dashboard');
+
+    Route::get('/receptionniste/dashboard', function () {
+        return view('receptionniste.dashboard');
+    })->middleware('role:receptionniste')->name('receptionniste.dashboard');
+
+    // Espace du professionnel : uniquement SES rendez-vous
+    Route::middleware('role:professionnel')
+        ->prefix('professionnel')
+        ->name('professionnel.')
+        ->group(function () {
+
+            Route::get('dashboard', [ProfessionnelController::class, 'dashboard'])
+                ->name('dashboard');
+
+            Route::get('planning', [ProfessionnelController::class, 'planning'])
+                ->name('planning');
+
+            Route::get('rendez-vous/{rendezVous}', [ProfessionnelController::class, 'show'])
+                ->name('rendez-vous.show');
+
+            Route::patch('rendez-vous/{rendezVous}/statut', [ProfessionnelController::class, 'statut'])
+                ->name('rendez-vous.statut');
+        });
+
+    // Clients : admin + réceptionniste (le professionnel voit la fiche via son rendez-vous)
+    Route::middleware('role:admin,receptionniste')->group(function () {
+        Route::get('clients/export', [ClientController::class, 'export'])
+            ->name('clients.export');
+
+        Route::resource('clients', ClientController::class)
+            ->except(['destroy']);
+
+        Route::post('clients/{client}/archive', [ClientController::class, 'archive'])
+            ->name('clients.archive');
+
+        Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
+            ->name('clients.restore');
+    });
+
+    // Gestion des employés (protégée par la policy Employe)
+    Route::resource('employes', EmployeController::class)
+        ->parameters(['employes' => 'employe'])
+        ->except(['destroy']);
+
+    // ═════════════════════════════════════════════════════════════
+    // STOCK
+    // ═════════════════════════════════════════════════════════════
+
+    Route::prefix('stock')->name('stock.')->group(function () {
+
+        // Consultation et sorties : admin + réceptionniste
+        Route::middleware('role:admin,receptionniste')->group(function () {
+            Route::get('/', [ProduitController::class, 'index'])->name('index');
+            Route::get('mouvements', [MouvementStockController::class, 'index'])->name('mouvements.index');
+
+            Route::get('produits/{produit}/sortie', [MouvementStockController::class, 'create'])
+                ->defaults('type', 'sortie')->name('sortie.create');
+            Route::post('produits/{produit}/sortie', [MouvementStockController::class, 'store'])
+                ->defaults('type', 'sortie')->name('sortie.store');
+        });
+
+        // Gestion (produits + approvisionnements) : admin uniquement
+        Route::middleware('admin')->group(function () {
+            Route::resource('produits', ProduitController::class)
+                ->only(['create', 'store', 'edit', 'update']);
+
+            Route::get('produits/{produit}/entree', [MouvementStockController::class, 'create'])
+                ->defaults('type', 'entree')->name('entree.create');
+            Route::post('produits/{produit}/entree', [MouvementStockController::class, 'store'])
+                ->defaults('type', 'entree')->name('entree.store');
+        });
+    });
+
+    // ═════════════════════════════════════════════════════════════
+    // ADMIN + RÉCEPTIONNISTE
+    // ═════════════════════════════════════════════════════════════
+
+    // Gestion de la caisse
+    Route::middleware('role:admin,receptionniste')
+        ->prefix('caisse')
+        ->name('caisse.')
+        ->group(function () {
+
+            Route::get('/', [CaisseController::class, 'index'])
+                ->name('index');
+
+            Route::get('/encaisser', [CaisseController::class, 'create'])
+                ->name('create');
+
+            Route::get('/impayes', [CaisseController::class, 'impayes'])
+                ->name('impayes');
+
+            Route::post('/', [CaisseController::class, 'store'])
+                ->name('store');
+
+            Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])
+                ->name('recu');
+
+            Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
+                ->name('annuler');
+        });
+
+    // Anniversaires (relation client)
+    Route::middleware('role:admin,receptionniste')->group(function () {
+
+        Route::get('anniversaires', [AnniversaireController::class, 'index'])
+            ->name('anniversaires.index');
+
+        Route::post('anniversaires/offre', [AnniversaireController::class, 'enregistrerOffre'])
+            ->name('anniversaires.offre');
+
+        Route::post('anniversaires/{client}/traite', [AnniversaireController::class, 'traiter'])
+            ->name('anniversaires.traiter');
+
+        Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
+            ->name('anniversaires.annuler');
+    });
+
+    // ═════════════════════════════════════════════════════════════
+    // ADMIN UNIQUEMENT
+    // ═════════════════════════════════════════════════════════════
+
+    // Programme de fidélité
     Route::middleware('admin')->group(function () {
 
         Route::get('/fidelite', [FideliteController::class, 'index'])
@@ -51,45 +184,7 @@ Route::middleware('auth')->group(function () {
             ->name('fidelite.recompenses.destroy');
     });
 
-    // Tableaux de bord
-    Route::get('/dashboard', [DashboardController::class, 'admin'])
-        ->name('admin.dashboard');
-
-    Route::get('/receptionniste/dashboard', function () {
-        return view('receptionniste.dashboard');
-    })->name('receptionniste.dashboard');
-
-    Route::get('/professionnel/dashboard', function () {
-        return view('professionnel.dashboard');
-    })->name('professionnel.dashboard');
-
-    // Gestion des clients
-    Route::get('clients/export', [ClientController::class, 'export'])
-        ->name('clients.export');
-
-    Route::resource('clients', ClientController::class)
-        ->except(['destroy']);
-
-    Route::post('clients/{client}/archive', [ClientController::class, 'archive'])
-        ->name('clients.archive');
-
-    Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
-        ->name('clients.restore');
-
-    // Anniversaires
-    Route::get('anniversaires', [AnniversaireController::class, 'index'])
-        ->name('anniversaires.index');
-
-    Route::post('anniversaires/offre', [AnniversaireController::class, 'enregistrerOffre'])
-        ->name('anniversaires.offre');
-
-    Route::post('anniversaires/{client}/traite', [AnniversaireController::class, 'traiter'])
-        ->name('anniversaires.traiter');
-
-    Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
-        ->name('anniversaires.annuler');
-
-    // Campagnes WhatsApp : administrateur uniquement
+    // Campagnes WhatsApp
     Route::middleware('admin')
         ->prefix('campagnes')
         ->name('campagnes.')
@@ -111,17 +206,15 @@ Route::middleware('auth')->group(function () {
                 ->name('show');
         });
 
-    // Gestion des employés
-    Route::resource('employes', EmployeController::class)
-        ->parameters(['employes' => 'employe'])
-        ->except(['destroy']);
-
     // Paramètres : modèles de messages WhatsApp
-    Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
-        ->name('parametres.messages');
+    Route::middleware('admin')->group(function () {
 
-    Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
-        ->name('parametres.messages.update');
+        Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
+            ->name('parametres.messages');
+
+        Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
+            ->name('parametres.messages.update');
+    });
 
     // Prestations et forfaits
     Route::middleware('admin')
@@ -166,31 +259,6 @@ Route::middleware('auth')->group(function () {
                 ->name('categories.destroy');
         });
 
-    // Gestion de la caisse
-    Route::middleware('role:admin,receptionniste')
-        ->prefix('caisse')
-        ->name('caisse.')
-        ->group(function () {
-
-            Route::get('/', [CaisseController::class, 'index'])
-                ->name('index');
-
-            Route::get('/encaisser', [CaisseController::class, 'create'])
-                ->name('create');
-
-            Route::get('/impayes', [CaisseController::class, 'impayes'])
-                ->name('impayes');
-
-            Route::post('/', [CaisseController::class, 'store'])
-                ->name('store');
-
-            Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])
-                ->name('recu');
-
-            Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
-                ->name('annuler');
-        });
-
     // Modes de paiement configurables
     Route::middleware('admin')
         ->prefix('caisse/modes')
@@ -207,7 +275,7 @@ Route::middleware('auth')->group(function () {
                 ->name('toggle');
         });
 
-    // Dépenses : administrateur uniquement
+    // Dépenses
     Route::middleware('admin')
         ->prefix('depenses')
         ->name('depenses.')
@@ -233,24 +301,28 @@ Route::middleware('auth')->group(function () {
         ->name('logout');
 });
 
-// Gestion des rendez-vous
+// Rendez-vous
 Route::middleware('auth')
     ->prefix('rendez-vous')
     ->name('rendez-vous.')
     ->group(function () {
 
-        Route::get('/', [CalendrierController::class, 'index'])
-            ->name('index');
+        // Le professionnel passe par /professionnel/... (voir plus haut)
+        Route::middleware('role:admin,receptionniste')->group(function () {
 
-        Route::get('/creer', [RendezVousController::class, 'create'])
-            ->name('create');
+            Route::get('/', [CalendrierController::class, 'index'])
+                ->name('index');
 
-        Route::post('/', [RendezVousController::class, 'store'])
-            ->name('store');
+            Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])
+                ->name('statut');
 
-        Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])
-            ->name('statut');
+            Route::get('/creer', [RendezVousController::class, 'create'])
+                ->name('create');
 
-        Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])
-            ->name('deplacer');
+            Route::post('/', [RendezVousController::class, 'store'])
+                ->name('store');
+
+            Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])
+                ->name('deplacer');
+        });
     });

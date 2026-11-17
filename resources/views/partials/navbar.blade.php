@@ -2,6 +2,7 @@
     $titrePage = match (true) {
         request()->routeIs('caisse.create') => 'Nouvel encaissement',
         request()->routeIs('caisse.*') => 'Caisse',
+        request()->routeIs('stock.*') => 'Stock',
 
         // Clients
         request()->routeIs('clients.create') => 'Nouveau client',
