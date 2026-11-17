@@ -1,7 +1,6 @@
 <?php
-
 namespace App\Http\Controllers;
-
+use App\Support\WhatsApp;
 use App\Enums\StatutRendezVous;
 use App\Models\Client;
 use App\Models\Depense;
@@ -532,6 +531,105 @@ class DashboardController extends Controller
             'doublonsWhatsapp',
             'activitesRecentes',
             'nombreAlertes'
+        ));
+    }
+        public function receptionniste()
+    {
+        $maintenant = CarbonImmutable::now();
+        $debutJour = $maintenant->startOfDay();
+        $finJour = $maintenant->endOfDay();
+        $demain = $maintenant->addDay();
+        $user = auth()->user();
+
+        $nomSalon = DB::table('parametres_salon')->where('cle', 'nom')->value('valeur') ?? 'All in One by Eva';
+        $peutEncaisser = $user->aPermission('paiements.enregistrer');
+
+        // ── Planning du jour ──
+        $rdvDuJour = RendezVous::query()
+            ->with(['client', 'employe', 'lignes'])
+            ->whereBetween('debut', [$debutJour, $finJour])
+            ->bloquants()
+            ->orderBy('debut')
+            ->get();
+
+        $totalJour = $rdvDuJour->count();
+        $termines = $rdvDuJour->filter(fn ($r) => $r->statut === StatutRendezVous::Termine)->count();
+        $enAttente = $rdvDuJour->filter(fn ($r) => $r->statut === StatutRendezVous::EnAttente)->count();
+        $restants = $rdvDuJour->filter(
+            fn ($r) => $r->statut !== StatutRendezVous::Termine && $r->fin >= $maintenant
+        )->count();
+
+        // ── Rappels WhatsApp pour demain ──
+        $rappelsDemain = RendezVous::query()
+            ->with(['client', 'lignes'])
+            ->whereBetween('debut', [$demain->startOfDay(), $demain->endOfDay()])
+            ->bloquants()
+            ->orderBy('debut')
+            ->get()
+            ->map(function ($rdv) use ($nomSalon) {
+                $texte = "Bonjour {$rdv->client->prenom}, nous vous rappelons votre rendez-vous demain à "
+                    . $rdv->debut->format('H:i')
+                    . ($rdv->lignes->isNotEmpty() ? ' (' . $rdv->libellePrestations() . ')' : '')
+                    . " chez {$nomSalon}. Merci de confirmer votre présence. À très bientôt !";
+
+                return [
+                    'rdv' => $rdv,
+                    'lien' => WhatsApp::lien($rdv->client->whatsapp ?: $rdv->client->telephone, $texte),
+                ];
+            });
+
+        // ── Anniversaires du jour ──
+        $anniversaires = Client::query()
+            ->nonArchives()
+            ->whereNotNull('date_naissance')
+            ->whereMonth('date_naissance', $maintenant->month)
+            ->whereDay('date_naissance', $maintenant->day)
+            ->get()
+            ->map(function ($client) use ($nomSalon, $maintenant) {
+                $age = $maintenant->year - CarbonImmutable::parse($client->date_naissance)->year;
+                $texte = "Joyeux anniversaire {$client->prenom} ! 🎂 Toute l'équipe de {$nomSalon} vous souhaite une merveilleuse journée.";
+
+                return [
+                    'client' => $client,
+                    'age' => $age,
+                    'lien' => WhatsApp::lien($client->whatsapp ?: $client->telephone, $texte),
+                ];
+            });
+
+        // ── À encaisser aujourd'hui ──
+        $aEncaisser = collect();
+        $mesEncaissements = 0;
+        $mesPaiements = 0;
+
+        if ($peutEncaisser) {
+            $aEncaisser = RendezVous::query()
+                ->with(['client', 'lignes'])
+                ->bloquants()
+                ->avecReste()
+                ->withSum(['paiements as paye' => fn ($q) => $q->valides()], 'montant_paye')
+                ->whereBetween('debut', [$debutJour, $finJour])
+                ->orderBy('debut')
+                ->get();
+
+            $paiementsDuJour = Paiement::query()
+                ->valides()
+                ->where('enregistre_par', $user->id)
+                ->whereBetween('paye_le', [$debutJour, $finJour]);
+
+            $mesEncaissements = (int) (clone $paiementsDuJour)->sum('montant_paye');
+            $mesPaiements = (clone $paiementsDuJour)->count();
+        }
+
+        $clientsDuJour = Client::query()
+            ->nonArchives()
+            ->whereBetween('created_at', [$debutJour, $finJour])
+            ->count();
+
+        return view('receptionniste.dashboard', compact(
+            'maintenant', 'peutEncaisser',
+            'rdvDuJour', 'totalJour', 'termines', 'enAttente', 'restants',
+            'rappelsDemain', 'anniversaires',
+            'aEncaisser', 'mesEncaissements', 'mesPaiements', 'clientsDuJour'
         ));
     }
 }

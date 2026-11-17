@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
 @section('title', 'Caisse — All in One by Eva')
-@section('breadcrumb', 'Caisse')
+@section('page-title', 'Caisse')
 
 @section('content')
-
+    @include('caisse._onglets')
     <div class="space-y-6">
 
         {{-- En-tête --}}
@@ -18,11 +18,10 @@
                 </p>
             </div>
 
-            <a href="{{ route('caisse.create') }}"
-                class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#76243D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5d1c30]">
-                <i data-lucide="plus" class="h-4 w-4"></i>
-                Nouvel encaissement
-            </a>
+            @if (auth()->user()->aPermission('paiements.enregistrer'))
+                <a href="{{ route('caisse.create') }}" class="rounded-lg bg-wine px-4 py-2 text-sm font-medium text-white">+
+                    Encaisser</a>
+            @endif
         </div>
 
         {{-- Messages --}}
@@ -285,52 +284,54 @@
                                 </td>
 
                                 <td class="whitespace-nowrap px-5 py-4 text-right">
+                                    <div class="flex items-center justify-end gap-3">
 
-                                    @if (!$paiement->estAnnule())
-                                        <details class="relative inline-block text-left">
+                                        <a href="{{ route('caisse.recu', $paiement) }}"
+                                            class="inline-flex items-center gap-1 text-xs font-medium text-[#76243D] hover:underline">
+                                            <i data-lucide="printer" class="h-3.5 w-3.5"></i>
+                                            Reçu
+                                        </a>
 
-                                            <summary
-                                                class="inline-flex cursor-pointer list-none items-center gap-1 rounded-lg border border-red-100 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50">
-                                                <i data-lucide="ban" class="h-3.5 w-3.5"></i>
-                                                Annuler
-                                            </summary>
+                                        @if ($paiement->estAnnule())
+                                            <span class="text-xs text-gray-400">Annulation effectuée</span>
+                                        @elseif (auth()->user()->aPermission('paiements.annuler'))
+                                            <details class="relative inline-block text-left">
 
-                                            <div
-                                                class="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-gray-100 bg-white p-4 text-left shadow-xl">
+                                                <summary
+                                                    class="inline-flex cursor-pointer list-none items-center gap-1 rounded-lg border border-red-100 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50">
+                                                    <i data-lucide="ban" class="h-3.5 w-3.5"></i>
+                                                    Annuler
+                                                </summary>
 
-                                                <p class="mb-3 text-sm font-semibold text-gray-800">
-                                                    Annuler ce paiement
-                                                </p>
+                                                <div
+                                                    class="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-gray-100 bg-white p-4 text-left shadow-xl">
 
-                                                <form action="{{ route('caisse.annuler', $paiement) }}" method="POST"
-                                                    onsubmit="return confirm('Confirmer l’annulation de ce paiement ?')">
+                                                    <p class="mb-3 text-sm font-semibold text-gray-800">Annuler ce paiement
+                                                    </p>
 
-                                                    @csrf
-                                                    @method('PATCH')
+                                                    <form action="{{ route('caisse.annuler', $paiement) }}"
+                                                        method="POST"
+                                                        onsubmit="return confirm('Confirmer l’annulation de ce paiement ?')">
+                                                        @csrf
+                                                        @method('PATCH')
 
-                                                    <label class="mb-1 block text-xs text-gray-600">
-                                                        Motif d'annulation
-                                                    </label>
+                                                        <label class="mb-1 block text-xs text-gray-600">Motif
+                                                            d'annulation</label>
 
-                                                    <textarea name="motif_annulation" required minlength="5" maxlength="255" rows="3"
-                                                        placeholder="Expliquez le motif..."
-                                                        class="w-full rounded-lg border border-gray-200 p-2 text-xs outline-none focus:border-[#76243D]"></textarea>
+                                                        <textarea name="motif_annulation" required minlength="5" maxlength="255" rows="3"
+                                                            placeholder="Expliquez le motif..."
+                                                            class="w-full rounded-lg border border-gray-200 p-2 text-xs outline-none focus:border-[#76243D]"></textarea>
 
-                                                    <button type="submit"
-                                                        class="mt-3 w-full rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700">
-                                                        Confirmer l'annulation
-                                                    </button>
+                                                        <button type="submit"
+                                                            class="mt-3 w-full rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700">
+                                                            Confirmer l'annulation
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </details>
+                                        @endif
 
-                                                </form>
-                                            </div>
-
-                                        </details>
-                                    @else
-                                        <span class="text-xs text-gray-400">
-                                            Annulation effectuée
-                                        </span>
-                                    @endif
-
+                                    </div>
                                 </td>
 
                             </tr>
@@ -352,10 +353,12 @@
                                             Les encaissements apparaîtront ici.
                                         </p>
 
-                                        <a href="{{ route('caisse.create') }}"
-                                            class="mt-4 text-sm font-semibold text-[#76243D] hover:underline">
-                                            Effectuer un encaissement
-                                        </a>
+                                        @if (auth()->user()->aPermission('paiements.enregistrer'))
+                                            <a href="{{ route('caisse.create') }}"
+                                                class="mt-4 text-sm font-semibold text-[#76243D] hover:underline">
+                                                Effectuer un encaissement
+                                            </a>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
