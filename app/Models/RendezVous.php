@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Models;
+
 use App\Enums\StatutRendezVous;
 use App\Enums\ZoneSalon;
 use Illuminate\Database\Eloquent\Builder;
@@ -89,5 +91,15 @@ class RendezVous extends Model
     public function scopeChevauche(Builder $query, $debut, $fin): void
     {
         $query->where('debut', '<', $fin)->where('fin', '>', $debut);
+    }
+    /** Rendez-vous dont le prix prévu dépasse les paiements valides. */
+    public function scopeAvecReste(Builder $query): void
+    {
+        $query->whereRaw('rendez_vous.prix_prevu > COALESCE((
+            select sum(paiements.montant_paye)
+            from paiements
+            where paiements.rendez_vous_id = rendez_vous.id
+            and paiements.annule_le is null
+        ), 0)');
     }
 }

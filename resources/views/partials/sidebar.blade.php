@@ -1,4 +1,3 @@
-
 <aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-30 flex w-[255px] flex-col border-r border-line bg-white">
 
     {{-- Logo --}}
@@ -21,30 +20,33 @@
         @php
             $role = auth()->user()->role->name;
 
-            $routeDashboard = [
-                'receptionniste' => 'receptionniste.dashboard',
-                'professionnel' => 'professionnel.dashboard',
-                'admin' => 'admin.dashboard',
-            ][$role] ?? 'dashboard';
+            $routeDashboard =
+                [
+                    'receptionniste' => 'receptionniste.dashboard',
+                    'professionnel' => 'professionnel.dashboard',
+                    'admin' => 'admin.dashboard',
+                ][$role] ?? 'dashboard';
 
             $dashboardActif = request()->routeIs(
                 'dashboard',
                 'admin.dashboard',
                 'receptionniste.dashboard',
-                'professionnel.dashboard'
+                'professionnel.dashboard',
             );
         @endphp
 
-        <a href="{{ route($routeDashboard) }}"
-            class="nav-link {{ $dashboardActif ? 'active' : '' }}">
+        <a href="{{ route($routeDashboard) }}" class="nav-link {{ $dashboardActif ? 'active' : '' }}">
             <i data-lucide="layout-dashboard"></i>
             Tableau de bord
         </a>
 
-        <a href="#" class="nav-link">
-            <i data-lucide="chart-no-axes-column-increasing"></i>
-            Rapports
-        </a>
+        @if (auth()->user()->role->name === 'admin')
+            <a href="{{ route('rapports.index') }}"
+                class="nav-link {{ request()->routeIs('rapports.*') ? 'active' : '' }}">
+                <i data-lucide="chart-no-axes-column-increasing"></i>
+                Rapports
+            </a>
+        @endif
 
         <div class="nav-label">ACTIVITÉ</div>
 
@@ -54,19 +56,19 @@
             Rendez-vous
         </a>
 
-        <a href="{{ route('clients.index') }}"
-            class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
+        <a href="{{ route('clients.index') }}" class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
             <i data-lucide="users"></i>
             Clients
         </a>
 
-        @if ($role === 'admin')
-            <a href="{{ route('prestations.index') }}"
-                class="nav-link {{ request()->routeIs('prestations.*') ? 'active' : '' }}">
-                <i data-lucide="sparkles"></i>
-                Prestations
-            </a>
-        @endif
+        {{-- Prestations --}}
+        <a href="{{ auth()->user()->role->name === 'admin' ? route('prestations.index') : route('catalogue.index') }}"
+            class="nav-link {{ request()->routeIs('prestations.*', 'catalogue.*') ? 'active' : '' }}">
+            <i data-lucide="sparkles"></i>
+            Prestations
+        </a>
+
+        {{-- Caisse --}}
         @if (in_array($role, ['admin', 'receptionniste']))
             <a href="{{ route('caisse.index') }}"
                 class="nav-link {{ request()->routeIs('caisse.*') ? 'active' : '' }}">
@@ -75,60 +77,70 @@
             </a>
         @endif
 
+
         <div class="nav-label">RELATION CLIENT</div>
 
-        <a href="{{ route('campagnes.index') }}" class="nav-link">
-            <i data-lucide="message-circle"></i>
-             WhatsApp &amp; campagnes
-        </a>
+        {{-- Campagnes WhatsApp : administrateur uniquement --}}
+        @if ($role === 'admin')
+            <a href="{{ route('campagnes.index') }}"
+                class="nav-link {{ request()->routeIs('campagnes.*') ? 'active' : '' }}">
+                <i data-lucide="message-circle"></i>
+                WhatsApp &amp; campagnes
+            </a>
+            {{-- Fidélité --}}
+            <a href="{{ route('fidelite.index') }}"
+                class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
+                <i data-lucide="gem"></i>
+                Fidélité
+            </a>
+        @endif
 
-        <a href="{{ route('anniversaires.index') }}" class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
+        {{-- Anniversaires --}}
+        <a href="{{ route('anniversaires.index') }}"
+            class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
             <i data-lucide="cake"></i>
             Anniversaires
         </a>
 
-       <a href="{{ route('fidelite.index') }}"
-   class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
-    <i data-lucide="gem"></i>
-    Fidélité
-</a>
+        @if (auth()->user()->role->name === 'admin')
+            <div class="nav-label">GESTION</div>
 
-        <div class="nav-label">GESTION</div>
+            <a href="{{ route('depenses.index') }}" class="nav-link">
+                <i data-lucide="receipt"></i>
+                Dépenses
+            </a>
 
-        <a href="{{route('depenses.index')}}" class="nav-link">
-            <i data-lucide="receipt"></i>
-            Dépenses
-        </a>
-
-        <a href="#" class="nav-link">
-            <i data-lucide="package"></i>
-            Stocks
-            <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">2</span>
-        </a>
+            <a href="#" class="nav-link">
+                <i data-lucide="package"></i>
+                Stocks
+                <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">2</span>
+            </a>
 
             @can('viewAny', App\Models\Employe::class)
-    <a href="{{ route('employes.index') }}"
-        class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
-        <i data-lucide="contact-round"></i>
-        Employés
-    </a>
-@endcan
+                <a href="{{ route('employes.index') }}"
+                    class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
+                    <i data-lucide="contact-round"></i>
+                    Employés
+                </a>
+            @endcan
 
-         
-        <div class="nav-label">ADMINISTRATION</div>
 
-        <a href="{{ route('parametres.messages') }}" class="nav-link {{ request()->routeIs('parametres.*') ? 'active' : '' }}">
-            <i data-lucide="settings"></i>
-            Paramètres
-        </a>
+            <div class="nav-label">ADMINISTRATION</div>
 
+            <a href="{{ route('parametres.messages') }}"
+                class="nav-link {{ request()->routeIs('parametres.*') ? 'active' : '' }}">
+                <i data-lucide="settings"></i>
+                Paramètres
+            </a>
+        @endif
     </nav>
 
     {{-- Profil utilisateur --}}
     <div class="border-t border-line px-4 py-4">
 
         <div class="mb-4 flex items-center gap-2">
-            <div class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#f0dfe4] text-[10px] font-semibold text-wine">
+            <div
+                class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#f0dfe4] text-[10px] font-semibold text-wine">
                 {{ strtoupper(substr(Auth::user()->name, 0, 2)) }}
             </div>
 

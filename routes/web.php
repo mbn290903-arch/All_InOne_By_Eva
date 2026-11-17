@@ -1,4 +1,7 @@
 <?php
+use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\CatalogueController;
+use App\Http\Controllers\RapportController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CalendrierController;
 use App\Http\Controllers\ClientController;
@@ -19,7 +22,7 @@ Route::get('/', function () {
     return redirect()->route('login.show');
 });
 
-// Routes visiteurs
+// Routes pour les visiteurs non connectés
 Route::middleware('guest')->group(function () {
 
     Route::get('/connexion', [AuthController::class, 'showLogin'])
@@ -27,11 +30,28 @@ Route::middleware('guest')->group(function () {
 
     Route::post('/connexion', [AuthController::class, 'login'])
         ->name('login');
+
+    // Mot de passe oublié
+    Route::get('/mot-de-passe-oublie', [PasswordResetController::class, 'demande'])
+        ->name('password.request');
+
+    Route::post('/mot-de-passe-oublie', [PasswordResetController::class, 'envoyerLien'])
+        ->middleware('throttle:5,1')
+        ->name('password.email');
+
+    Route::get('/reinitialiser-mot-de-passe/{token}', [PasswordResetController::class, 'formulaire'])
+        ->name('password.reset');
+
+    Route::post('/reinitialiser-mot-de-passe', [PasswordResetController::class, 'reinitialiser'])
+        ->middleware('throttle:5,1')
+        ->name('password.update');
 });
 
 // Routes utilisateurs connectés
 Route::middleware('auth')->group(function () {
-
+    // Catalogue : consultation pour tous les utilisateurs connectés
+    Route::get('/catalogue', [CatalogueController::class, 'index'])
+        ->name('catalogue.index');
     // Programme de fidélité : administrateur uniquement
     Route::middleware('admin')->group(function () {
 
@@ -53,29 +73,32 @@ Route::middleware('auth')->group(function () {
 
     // Tableaux de bord
     Route::get('/dashboard', [DashboardController::class, 'admin'])
+        ->middleware('admin')
         ->name('admin.dashboard');
 
-    Route::get('/receptionniste/dashboard', function () {
-        return view('receptionniste.dashboard');
-    })->name('receptionniste.dashboard');
+    Route::get('/receptionniste/dashboard', [DashboardController::class, 'receptionniste'])
+        ->middleware('role:receptionniste,admin')
+        ->name('receptionniste.dashboard');
 
     Route::get('/professionnel/dashboard', function () {
         return view('professionnel.dashboard');
     })->name('professionnel.dashboard');
 
-    // Gestion des clients
-    Route::get('clients/export', [ClientController::class, 'export'])
-        ->name('clients.export');
+    // Gestion des clients : administrateur et réceptionniste
+    Route::middleware('role:admin,receptionniste')->group(function () {
 
-    Route::resource('clients', ClientController::class)
-        ->except(['destroy']);
+        Route::get('clients/export', [ClientController::class, 'export'])
+            ->name('clients.export');
 
-    Route::post('clients/{client}/archive', [ClientController::class, 'archive'])
-        ->name('clients.archive');
+        Route::resource('clients', ClientController::class)
+            ->except(['destroy']);
 
-    Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
-        ->name('clients.restore');
+        Route::post('clients/{client}/archive', [ClientController::class, 'archive'])
+            ->name('clients.archive');
 
+        Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
+            ->name('clients.restore');
+    });
     // Anniversaires
     Route::get('anniversaires', [AnniversaireController::class, 'index'])
         ->name('anniversaires.index');
@@ -111,17 +134,16 @@ Route::middleware('auth')->group(function () {
                 ->name('show');
         });
 
-    // Gestion des employés
-    Route::resource('employes', EmployeController::class)
-        ->parameters(['employes' => 'employe'])
-        ->except(['destroy']);
+    // Gestion des employés : administrateur uniquement
+    Route::middleware('admin')->group(function () {
+        Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
+            ->name('parametres.messages');
 
-    // Paramètres : modèles de messages WhatsApp
-    Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
-        ->name('parametres.messages');
-
-    Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
-        ->name('parametres.messages.update');
+        Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
+            ->name('parametres.messages.update');
+        Route::resource('employes', EmployeController::class)
+            ->only(['index', 'create', 'store', 'show', 'edit', 'update']);
+    });
 
     // Prestations et forfaits
     Route::middleware('admin')
@@ -166,7 +188,7 @@ Route::middleware('auth')->group(function () {
                 ->name('categories.destroy');
         });
 
-    // Gestion de la caisse
+    // Gestion de la caisse (admin et réceptionniste uniquement)
     Route::middleware('role:admin,receptionniste')
         ->prefix('caisse')
         ->name('caisse.')
@@ -175,22 +197,25 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [CaisseController::class, 'index'])
                 ->name('index');
 
-            Route::get('/encaisser', [CaisseController::class, 'create'])
-                ->name('create');
-
             Route::get('/impayes', [CaisseController::class, 'impayes'])
                 ->name('impayes');
-
-            Route::post('/', [CaisseController::class, 'store'])
-                ->name('store');
 
             Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])
                 ->name('recu');
 
             Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
                 ->name('annuler');
-        });
 
+            // Enregistrer un paiement : permission requise
+            Route::middleware('permission:paiements.enregistrer')->group(function () {
+
+                Route::get('/encaisser', [CaisseController::class, 'create'])
+                    ->name('create');
+
+                Route::post('/', [CaisseController::class, 'store'])
+                    ->name('store');
+            });
+        });
     // Modes de paiement configurables
     Route::middleware('admin')
         ->prefix('caisse/modes')
@@ -225,7 +250,22 @@ Route::middleware('auth')->group(function () {
             Route::patch('/{depense}/annuler', [DepenseController::class, 'annuler'])
                 ->name('annuler');
 
-            Route::get('/{depense}/annuler', fn () => redirect()->route('depenses.index'));
+            Route::get('/{depense}/annuler', fn() => redirect()->route('depenses.index'));
+        });
+    // Rapports et statistiques (admin)
+    Route::middleware('admin')
+        ->prefix('rapports')
+        ->name('rapports.')
+        ->group(function () {
+
+            Route::get('/', [RapportController::class, 'index'])
+                ->name('index');
+
+            Route::get('/imprimer', [RapportController::class, 'imprimer'])
+                ->name('imprimer');
+
+            Route::get('/export', [RapportController::class, 'exporter'])
+                ->name('export');
         });
 
     // Déconnexion
@@ -234,7 +274,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // Gestion des rendez-vous
-Route::middleware('auth')
+Route::middleware(['auth', 'role:admin,receptionniste,professionnel'])
     ->prefix('rendez-vous')
     ->name('rendez-vous.')
     ->group(function () {

@@ -1,5 +1,7 @@
 <?php
+
 namespace Database\Seeders;
+
 use App\Enums\StatutRendezVous;
 use App\Exceptions\RegleMetierException;
 use App\Models\CategorieDepense;
@@ -23,7 +25,11 @@ class DemoSeeder extends Seeder
 {
     public function run(RendezVousService $rendezVous, PaiementService $paiements): void
     {
-        $admin = $this->utilisateur('Eva Diallo', 'admin@allinone.test', 'admin');
+        $admin = $this->utilisateur(
+            'Eva Diallo',
+            'karaniamana09@gmail.com',
+            'admin'
+        );
         $this->utilisateur('Awa Ndiaye', 'accueil@allinone.test', 'receptionniste');
         Auth::login($admin);
 
@@ -95,14 +101,14 @@ class DemoSeeder extends Seeder
         Auth::logout();
     }
 
-   private function utilisateur(string $nom, string $email, string $role): User
-{
-    return User::create([
-        'name' => $nom,
-        'email' => $email,
-        'password' => Hash::make('password'),
-        'role_id' => Role::query()->where('name', $role)->value('id'),
-        'is_active' => true,
-    ]);
+    private function utilisateur(string $nom, string $email, string $role): User
+    {
+        return User::create([
+            'name' => $nom,
+            'email' => $email,
+            'password' => Hash::make('password'),
+            'role_id' => Role::query()->where('name', $role)->value('id'),
+            'is_active' => true,
+        ]);
     }
 }
