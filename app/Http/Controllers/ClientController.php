@@ -19,6 +19,8 @@ class ClientController extends Controller
      * ----------------------------------------------------------------*/
     public function index(Request $request)
     {
+        Gate::authorize('viewAny', Client::class);
+
         $q   = trim((string) $request->q);
         $tab = $request->get('tab', 'tous');
         $tri = $request->get('tri', 'recent');
@@ -43,6 +45,8 @@ class ClientController extends Controller
 
     public function create()
     {
+        Gate::authorize('create', Client::class);
+
         $nextCode = 'CL-' . str_pad((Client::max('id') ?? 0) + 1, 6, '0', STR_PAD_LEFT);
 
         return view('clients.create', compact('nextCode'));
@@ -50,6 +54,8 @@ class ClientController extends Controller
 
     public function show(Client $client)
     {
+        Gate::authorize('view', $client);
+
         $wa   = $this->messagesWhatsApp($client);
         $user = auth()->user();
 
@@ -67,6 +73,8 @@ class ClientController extends Controller
      * ----------------------------------------------------------------*/
     public function store(Request $request)
     {
+        Gate::authorize('create', Client::class);
+
         $data = $this->validated($request);
 
         // BUG 1 corrigé : « Créer quand même » (force=1) est enfin lu.
@@ -181,9 +189,22 @@ class ClientController extends Controller
 
             $put = fn(array $row) => fputcsv($out, array_map([$this, 'csvSafe'], $row), ';', '"', '');
 
-            $put(['Identifiant', 'Prénom', 'Nom', 'Public', 'Téléphone', 'WhatsApp', 'E-mail',
-                  'Date de naissance', 'Date inscription', 'Canal préféré', 'Consentement promo',
-                  'Date consentement', 'Statut', 'Archivé le']);
+            $put([
+                'Identifiant',
+                'Prénom',
+                'Nom',
+                'Public',
+                'Téléphone',
+                'WhatsApp',
+                'E-mail',
+                'Date de naissance',
+                'Date inscription',
+                'Canal préféré',
+                'Consentement promo',
+                'Date consentement',
+                'Statut',
+                'Archivé le'
+            ]);
 
             $query->chunkById(500, function ($rows) use ($put) {
                 foreach ($rows as $c) {
@@ -292,7 +313,7 @@ class ClientController extends Controller
 
                 if ($digits !== '') {
                     $w->orWhere('telephone', 'like', "%{$digits}%")
-                      ->orWhere('whatsapp', 'like', "%{$digits}%");
+                        ->orWhere('whatsapp', 'like', "%{$digits}%");
                 }
                 // Recherche par identifiant : CL-000012 ou CL000012
                 if (preg_match('/^CL-?0*(\d+)$/i', $q, $m)) {
@@ -301,9 +322,15 @@ class ClientController extends Controller
             });
         }
 
-        if ($tab === 'actifs')       { $query->where('statut', 'actif'); }
-        if ($tab === 'inactifs')     { $query->where('statut', 'inactif'); }
-        if ($tab === 'anniversaire') { $this->anniversaire($query); }
+        if ($tab === 'actifs') {
+            $query->where('statut', 'actif');
+        }
+        if ($tab === 'inactifs') {
+            $query->where('statut', 'inactif');
+        }
+        if ($tab === 'anniversaire') {
+            $this->anniversaire($query);
+        }
 
         $tri === 'nom'
             ? $query->orderBy('nom')->orderBy('prenom')

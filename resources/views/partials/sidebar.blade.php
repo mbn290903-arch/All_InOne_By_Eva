@@ -8,39 +8,44 @@
 
         <div>
             <div class="font-serif text-[18px] font-bold text-wine-dark">All in One</div>
-            <div class="text-[12px] text-muted">by Eva · Beauté &amp; bien-être</div>
+            <div class="text-[12px] text-muted">by Eva · Beauté & bien-être</div>
         </div>
     </div>
 
     {{-- Navigation --}}
     <nav class="flex-1 overflow-y-auto px-3 pb-4 pt-2">
 
-        <div class="nav-label">PILOTAGE</div>
-
         @php
             $role = auth()->user()->role->name;
+
+            $estAdmin = $role === 'admin';
+            $estReception = $role === 'receptionniste';
+            $estPro = $role === 'professionnel';
+            $adminOuReception = $estAdmin || $estReception;
 
             $routeDashboard =
                 [
                     'receptionniste' => 'receptionniste.dashboard',
                     'professionnel' => 'professionnel.dashboard',
                     'admin' => 'admin.dashboard',
-                ][$role] ?? 'dashboard';
+                ][$role] ?? 'admin.dashboard';
 
             $dashboardActif = request()->routeIs(
-                'dashboard',
                 'admin.dashboard',
                 'receptionniste.dashboard',
                 'professionnel.dashboard',
             );
         @endphp
 
+        {{-- PILOTAGE --}}
+        <div class="nav-label">PILOTAGE</div>
+
         <a href="{{ route($routeDashboard) }}" class="nav-link {{ $dashboardActif ? 'active' : '' }}">
             <i data-lucide="layout-dashboard"></i>
             Tableau de bord
         </a>
 
-        @if (auth()->user()->role->name === 'admin')
+        @if ($estAdmin)
             <a href="{{ route('rapports.index') }}"
                 class="nav-link {{ request()->routeIs('rapports.*') ? 'active' : '' }}">
                 <i data-lucide="chart-no-axes-column-increasing"></i>
@@ -48,28 +53,28 @@
             </a>
         @endif
 
+        {{-- ACTIVITÉ --}}
         <div class="nav-label">ACTIVITÉ</div>
 
-        <a href="{{ route('rendez-vous.index') }}"
-            class="nav-link {{ request()->routeIs('rendez-vous.*') ? 'active' : '' }}">
+        <a href="{{ $estPro ? route('professionnel.planning') : route('rendez-vous.index') }}"
+            class="nav-link {{ request()->routeIs('rendez-vous.*', 'professionnel.planning', 'professionnel.rendez-vous.*') ? 'active' : '' }}">
             <i data-lucide="calendar"></i>
-            Rendez-vous
+            {{ $estPro ? 'Mon planning' : 'Rendez-vous' }}
         </a>
+        @if ($adminOuReception)
+            <a href="{{ route('clients.index') }}"
+                class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
+                <i data-lucide="users"></i>
+                Clients
+            </a>
 
-        <a href="{{ route('clients.index') }}" class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
-            <i data-lucide="users"></i>
-            Clients
-        </a>
 
-        {{-- Prestations --}}
-        <a href="{{ auth()->user()->role->name === 'admin' ? route('prestations.index') : route('catalogue.index') }}"
-            class="nav-link {{ request()->routeIs('prestations.*', 'catalogue.*') ? 'active' : '' }}">
-            <i data-lucide="sparkles"></i>
-            Prestations
-        </a>
+            <a href="{{ $estAdmin ? route('prestations.index') : route('catalogue.index') }}"
+                class="nav-link {{ request()->routeIs('prestations.*', 'catalogue.*') ? 'active' : '' }}">
+                <i data-lucide="sparkles"></i>
+                Prestations
+            </a>
 
-        {{-- Caisse --}}
-        @if (in_array($role, ['admin', 'receptionniste']))
             <a href="{{ route('caisse.index') }}"
                 class="nav-link {{ request()->routeIs('caisse.*') ? 'active' : '' }}">
                 <i data-lucide="wallet"></i>
@@ -77,54 +82,72 @@
             </a>
         @endif
 
+        {{-- RELATION CLIENT --}}
+        @if ($adminOuReception)
+            <div class="nav-label">RELATION CLIENT</div>
 
-        <div class="nav-label">RELATION CLIENT</div>
+            @if ($estAdmin)
+                <a href="{{ route('campagnes.index') }}"
+                    class="nav-link {{ request()->routeIs('campagnes.*') ? 'active' : '' }}">
+                    <i data-lucide="message-circle"></i>
+                    WhatsApp & campagnes
+                </a>
+            @endif
 
-        {{-- Campagnes WhatsApp : administrateur uniquement --}}
-        @if ($role === 'admin')
-            <a href="{{ route('campagnes.index') }}"
-                class="nav-link {{ request()->routeIs('campagnes.*') ? 'active' : '' }}">
-                <i data-lucide="message-circle"></i>
-                WhatsApp &amp; campagnes
+            <a href="{{ route('anniversaires.index') }}"
+                class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
+                <i data-lucide="cake"></i>
+                Anniversaires
             </a>
-            {{-- Fidélité --}}
-            <a href="{{ route('fidelite.index') }}"
-                class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
-                <i data-lucide="gem"></i>
-                Fidélité
-            </a>
+
+            @if ($estAdmin)
+                <a href="{{ route('fidelite.index') }}"
+                    class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
+                    <i data-lucide="gem"></i>
+                    Fidélité
+                </a>
+            @endif
         @endif
 
-        {{-- Anniversaires --}}
-        <a href="{{ route('anniversaires.index') }}"
-            class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
-            <i data-lucide="cake"></i>
-            Anniversaires
-        </a>
+        {{-- GESTION --}}
+        @if ($adminOuReception)
+            <div class="nav-label"></div>
 
-        @if (auth()->user()->role->name === 'admin')
-            <div class="nav-label">GESTION</div>
-
-            <a href="{{ route('depenses.index') }}" class="nav-link">
-                <i data-lucide="receipt"></i>
-                Dépenses
-            </a>
-
-            <a href="#" class="nav-link">
-                <i data-lucide="package"></i>
-                Stocks
-                <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">2</span>
-            </a>
-
-            @can('viewAny', App\Models\Employe::class)
-                <a href="{{ route('employes.index') }}"
-                    class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
-                    <i data-lucide="contact-round"></i>
-                    Employés
+            @if ($estAdmin)
+                <a href="{{ route('depenses.index') }}"
+                    class="nav-link {{ request()->routeIs('depenses.*') ? 'active' : '' }}">
+                    <i data-lucide="receipt"></i>
+                    Dépenses
                 </a>
-            @endcan
+            @endif
 
+            {{-- Vérification sécurisée pour éviter le crash si la route 'stock.index' n'existe pas encore --}}
+            @if (config('stock.roles_lecture') && in_array($role, config('stock.roles_lecture')) && Route::has('stock.index'))
+                @php $nbAlertes = class_exists(\App\Models\Produit::class) ? \App\Models\Produit::stocksFaibles()->count() : 0; @endphp
+                <a href="{{ route('stock.index') }}"
+                    class="nav-link {{ request()->routeIs('stock.*') ? 'active' : '' }}">
+                    <i data-lucide="package"></i>
+                    Stocks
+                    @if ($nbAlertes > 0)
+                        <span
+                            class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">{{ $nbAlertes }}</span>
+                    @endif
+                </a>
+            @endif
 
+            @if ($estAdmin)
+                @can('viewAny', App\Models\Employe::class)
+                    <a href="{{ route('employes.index') }}"
+                        class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
+                        <i data-lucide="contact-round"></i>
+                        Employés
+                    </a>
+                @endcan
+            @endif
+        @endif
+
+        {{-- ADMINISTRATION --}}
+        @if ($estAdmin)
             <div class="nav-label">ADMINISTRATION</div>
 
             <a href="{{ route('parametres.messages') }}"
@@ -133,6 +156,7 @@
                 Paramètres
             </a>
         @endif
+
     </nav>
 
     {{-- Profil utilisateur --}}

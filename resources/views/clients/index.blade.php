@@ -238,11 +238,15 @@
                                                 <a href="{{ route('clients.edit', $c) }}"
                                                     class="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium hover:bg-neutral-50">Modifier</a>
                                             @endunless
-                                            <a href="https://wa.me/221{{ $c->whatsapp }}" target="_blank" rel="noopener"
-                                                title="Écrire sur WhatsApp"
-                                                class="rounded-lg border border-[#25D366] bg-[#25D366] px-2.5 py-1.5 text-xs font-medium text-white transition hover:border-[#128C7E] hover:bg-[#128C7E]">
-                                                WhatsApp
-                                            </a>
+                                            @if (auth()->user()->isAdmin() || auth()->user()->hasPermission('whatsapp.envoyer'))
+                                                @if ($c->whatsapp)
+                                                    <a href="https://wa.me/221{{ $c->whatsapp }}" target="_blank"
+                                                        rel="noopener" title="Écrire sur WhatsApp"
+                                                        class="rounded-lg border border-[#25D366] bg-[#25D366] px-2.5 py-1.5 text-xs font-medium text-white transition hover:border-[#128C7E] hover:bg-[#128C7E]">
+                                                        WhatsApp
+                                                    </a>
+                                                @endif
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

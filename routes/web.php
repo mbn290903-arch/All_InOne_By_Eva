@@ -15,6 +15,9 @@ use App\Http\Controllers\AnniversaireController;
 use App\Http\Controllers\ModeleMessageController;
 use App\Http\Controllers\CampagneController;
 use App\Http\Controllers\EmployeController;
+use App\Http\Controllers\MouvementStockController;
+use App\Http\Controllers\ProduitController;
+use App\Http\Controllers\ProfessionnelController;
 use Illuminate\Support\Facades\Route;
 
 // Accueil
@@ -49,9 +52,11 @@ Route::middleware('guest')->group(function () {
 
 // Routes utilisateurs connectés
 Route::middleware('auth')->group(function () {
-    // Catalogue : consultation pour tous les utilisateurs connectés
-    Route::get('/catalogue', [CatalogueController::class, 'index'])
+    // Route de secours pour le catalogue visible par la réception
+    Route::get('/catalogue', [PrestationController::class, 'index'])
+        ->middleware('role:admin,receptionniste,professionnel')
         ->name('catalogue.index');
+
     // Programme de fidélité : administrateur uniquement
     Route::middleware('admin')->group(function () {
 
@@ -76,13 +81,141 @@ Route::middleware('auth')->group(function () {
         ->middleware('admin')
         ->name('admin.dashboard');
 
-    Route::get('/receptionniste/dashboard', [DashboardController::class, 'receptionniste'])
-        ->middleware('role:receptionniste,admin')
+    Route::get('/receptionniste/dashboard', function () {
+        $user = auth()->user();
+        $peutEncaisser = $user->isAdmin()
+            || $user->hasPermission('paiements.enregistrer');
+
+        $now = now();
+        $debutJour = $now->copy()->startOfDay();
+        $finJour = $now->copy()->endOfDay();
+
+        $demainDebut = $now->copy()->addDay()->startOfDay();
+        $demainFin = $now->copy()->addDay()->endOfDay();
+
+        // Statistiques des rendez-vous du jour
+        $rdvJour = \App\Models\RendezVous::whereBetween('debut', [$debutJour, $finJour])->get();
+
+        $totalJour = $rdvJour->count();
+        $termines = $rdvJour->where('statut', 'termine')->count();
+        $restants = $rdvJour->where('fin', '>=', $now)
+            ->whereNotIn('statut', ['termine', 'annule'])
+            ->count();
+
+        $enAttente = $rdvJour->where('statut', 'en_attente')->count();
+        $clientsDuJour = \App\Models\Client::whereBetween('created_at', [$debutJour, $finJour])->count();
+
+        // Liste des rendez-vous du jour pour le planning
+        $rdvDuJour = \App\Models\RendezVous::with([
+            'client',
+            'employe',
+            'lignes.service',
+            'lignes.forfait',
+        ])
+            ->whereBetween('debut', [$debutJour, $finJour])
+            ->orderBy('debut', 'asc')
+            ->get();
+
+        // Rendez-vous à encaisser
+        $aEncaisser = \App\Models\RendezVous::with(['client'])
+            ->whereBetween('debut', [$debutJour, $finJour])
+            ->where('statut', '!=', 'annule')
+            ->get();
+
+        // Rappels WhatsApp pour les rendez-vous de demain
+        $rdvDemain = \App\Models\RendezVous::with([
+            'client',
+            'employe',
+            'lignes.service',
+            'lignes.forfait',
+        ])
+            ->whereBetween('debut', [$demainDebut, $demainFin])
+            ->where('statut', '!=', 'annule')
+            ->orderBy('debut', 'asc')
+            ->get();
+
+        $rappelsDemain = $rdvDemain->map(function ($rdv) {
+            return ['rdv' => $rdv];
+        });
+
+        // Anniversaires du jour (basé sur la date de naissance des clients, si la colonne 'date_naissance' existe)
+        $anniversaires = collect();
+        if (\Illuminate\Support\Facades\Schema::hasColumn('clients', 'date_naissance')) {
+            $clientsAnniv = \App\Models\Client::whereMonth('date_naissance', $now->month)
+                ->whereDay('date_naissance', $now->day)
+                ->get();
+
+            $anniversaires = $clientsAnniv->map(function ($client) use ($now) {
+                $age = $client->date_naissance ? \Carbon\Carbon::parse($client->date_naissance)->age : null;
+                return [
+                    'client' => $client,
+                    'age' => $age,
+                    'lien' => null // ou un lien WhatsApp vers le client si tu en as un
+                ];
+            });
+        }
+
+        // Fonction pour calculer la durée en minutes d'un rendez-vous
+        $minutes = function ($rdv) {
+            if (isset($rdv->debut) && isset($rdv->fin)) {
+                return \Carbon\Carbon::parse($rdv->debut)->diffInMinutes(\Carbon\Carbon::parse($rdv->fin));
+            }
+            return 30;
+        };
+
+        // Encaissements du jour
+        $queryPaiements = \App\Models\Paiement::whereBetween('created_at', [$debutJour, $finJour]);
+        if (\Illuminate\Support\Facades\Schema::hasColumn('paiements', 'user_id')) {
+            $queryPaiements->where('user_id', $user->id);
+        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('paiements', 'employe_id')) {
+            $queryPaiements->where('employe_id', $user->id);
+        }
+
+        $paiementsJour = $queryPaiements->get();
+        $mesEncaissements = $paiementsJour->sum('montant');
+        $mesPaiements = $paiementsJour->count();
+
+        // Fonction de formatage des montants
+        $f = fn($val) => number_format($val, 0, ',', ' ');
+
+        return view('receptionniste.dashboard', compact(
+            'peutEncaisser',
+            'totalJour',
+            'termines',
+            'restants',
+            'enAttente',
+            'clientsDuJour',
+            'rdvDuJour',
+            'aEncaisser',
+            'rappelsDemain',
+            'anniversaires',
+            'minutes',
+            'mesEncaissements',
+            'mesPaiements',
+            'f'
+        ));
+    })->middleware('role:admin,receptionniste')
         ->name('receptionniste.dashboard');
 
-    Route::get('/professionnel/dashboard', function () {
-        return view('professionnel.dashboard');
-    })->name('professionnel.dashboard');
+    // Tableau de bord du professionnel
+    Route::get('/professionnel/dashboard', [ProfessionnelController::class, 'dashboard'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.dashboard');
+
+    // Planning du professionnel
+    Route::get('/professionnel/planning', [ProfessionnelController::class, 'planning'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.planning');
+
+    // Détails d'un rendez-vous du professionnel
+    Route::get('/professionnel/rendez-vous/{rendezVous}', [ProfessionnelController::class, 'show'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.rendez-vous.show');
+
+    // Changement de statut d'un rendez-vous
+    Route::patch('/professionnel/rendez-vous/{rendezVous}/statut', [ProfessionnelController::class, 'statut'])
+        ->middleware('role:professionnel,admin')
+        ->name('professionnel.rendez-vous.statut');
 
     // Gestion des clients : administrateur et réceptionniste
     Route::middleware('role:admin,receptionniste')->group(function () {
@@ -99,18 +232,22 @@ Route::middleware('auth')->group(function () {
         Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
             ->name('clients.restore');
     });
-    // Anniversaires
-    Route::get('anniversaires', [AnniversaireController::class, 'index'])
-        ->name('anniversaires.index');
 
-    Route::post('anniversaires/offre', [AnniversaireController::class, 'enregistrerOffre'])
-        ->name('anniversaires.offre');
+    // Anniversaires : administrateur et réceptionniste
+    Route::middleware('role:admin,receptionniste')->group(function () {
 
-    Route::post('anniversaires/{client}/traite', [AnniversaireController::class, 'traiter'])
-        ->name('anniversaires.traiter');
+        Route::get('anniversaires', [AnniversaireController::class, 'index'])
+            ->name('anniversaires.index');
 
-    Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
-        ->name('anniversaires.annuler');
+        Route::post('anniversaires/offre', [AnniversaireController::class, 'enregistrerOffre'])
+            ->name('anniversaires.offre');
+
+        Route::post('anniversaires/{client}/traite', [AnniversaireController::class, 'traiter'])
+            ->name('anniversaires.traiter');
+
+        Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
+            ->name('anniversaires.annuler');
+    });
 
     // Campagnes WhatsApp : administrateur uniquement
     Route::middleware('admin')
@@ -136,13 +273,20 @@ Route::middleware('auth')->group(function () {
 
     // Gestion des employés : administrateur uniquement
     Route::middleware('admin')->group(function () {
+
+        Route::resource('employes', EmployeController::class)
+            ->parameters(['employes' => 'employe'])
+            ->except(['destroy']);
+    });
+
+    // Paramètres des modèles WhatsApp : administrateur uniquement
+    Route::middleware('admin')->group(function () {
+
         Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
             ->name('parametres.messages');
 
         Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
             ->name('parametres.messages.update');
-        Route::resource('employes', EmployeController::class)
-            ->only(['index', 'create', 'store', 'show', 'edit', 'update']);
     });
 
     // Prestations et forfaits
@@ -188,25 +332,26 @@ Route::middleware('auth')->group(function () {
                 ->name('categories.destroy');
         });
 
-    // Gestion de la caisse (admin et réceptionniste uniquement)
+
+    // Gestion de la caisse
     Route::middleware('role:admin,receptionniste')
         ->prefix('caisse')
         ->name('caisse.')
         ->group(function () {
 
+            // Consultation de la caisse
             Route::get('/', [CaisseController::class, 'index'])
                 ->name('index');
 
+            // Consultation des impayés
             Route::get('/impayes', [CaisseController::class, 'impayes'])
                 ->name('impayes');
 
+            // Consultation des reçus
             Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])
                 ->name('recu');
 
-            Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
-                ->name('annuler');
-
-            // Enregistrer un paiement : permission requise
+            // Actions nécessitant une permission
             Route::middleware('permission:paiements.enregistrer')->group(function () {
 
                 Route::get('/encaisser', [CaisseController::class, 'create'])
@@ -215,7 +360,14 @@ Route::middleware('auth')->group(function () {
                 Route::post('/', [CaisseController::class, 'store'])
                     ->name('store');
             });
+
+            // Annulation : permission spécifique
+            Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
+                ->middleware('permission:paiements.annuler')
+                ->name('annuler');
         });
+
+
     // Modes de paiement configurables
     Route::middleware('admin')
         ->prefix('caisse/modes')
@@ -232,7 +384,7 @@ Route::middleware('auth')->group(function () {
                 ->name('toggle');
         });
 
-    // Dépenses : administrateur uniquement
+    // Dépenses
     Route::middleware('admin')
         ->prefix('depenses')
         ->name('depenses.')
@@ -252,6 +404,7 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/{depense}/annuler', fn() => redirect()->route('depenses.index'));
         });
+
     // Rapports et statistiques (admin)
     Route::middleware('admin')
         ->prefix('rapports')
@@ -273,8 +426,9 @@ Route::middleware('auth')->group(function () {
         ->name('logout');
 });
 
+
 // Gestion des rendez-vous
-Route::middleware(['auth', 'role:admin,receptionniste,professionnel'])
+Route::middleware(['auth', 'role:admin,receptionniste'])
     ->prefix('rendez-vous')
     ->name('rendez-vous.')
     ->group(function () {
