@@ -448,3 +448,4 @@ Route::middleware(['auth', 'role:admin,receptionniste'])
         Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])
             ->name('deplacer');
     });
+    
