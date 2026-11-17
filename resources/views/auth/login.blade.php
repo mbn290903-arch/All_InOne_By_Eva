@@ -149,7 +149,7 @@
                             <input id="email" name="email" type="email" value="{{ old('email') }}" required
                                 autofocus autocomplete="username" placeholder="nom@allinone-eva.sn"
                                 class="w-full rounded-lg border bg-white py-2.5 pl-10 pr-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2
-               {{ $errors->has('email') ? 'border-red-300 bg-red-50/40 focus:ring-red-200' : 'border-neutral-200 focus:border-brand-600 focus:ring-brand-600/20' }}">
+                {{ $errors->has('email') ? 'border-red-300 bg-red-50/40 focus:ring-red-200' : 'border-neutral-200 focus:border-brand-600 focus:ring-brand-600/20' }}">
                         </div>
                     </div>
 
