@@ -3,6 +3,7 @@
 @section('page-title', 'Modes de paiement')
 
 @section('content')
+    @include('caisse._onglets')
     @include('partials.alertes')
 
     <form method="POST" action="{{ route('caisse.modes.store') }}" class="flex max-w-md gap-2">
@@ -19,7 +20,8 @@
                 <form method="POST" action="{{ route('caisse.modes.toggle', $m) }}">
                     @csrf
                     @method('PATCH')
-                    <button class="text-xs text-wine hover:underline">{{ $m->is_active ? 'Désactiver' : 'Activer' }}</button>
+                    <button
+                        class="text-xs text-wine hover:underline">{{ $m->is_active ? 'Désactiver' : 'Activer' }}</button>
                 </form>
             </div>
         @endforeach

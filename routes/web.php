@@ -1,5 +1,5 @@
 <?php
-
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\CatalogueController;
 use App\Http\Controllers\RapportController;
 use App\Http\Controllers\AuthController;
@@ -22,7 +22,7 @@ Route::get('/', function () {
     return redirect()->route('login.show');
 });
 
-// Routes visiteurs
+// Routes pour les visiteurs non connectés
 Route::middleware('guest')->group(function () {
 
     Route::get('/connexion', [AuthController::class, 'showLogin'])
@@ -30,6 +30,21 @@ Route::middleware('guest')->group(function () {
 
     Route::post('/connexion', [AuthController::class, 'login'])
         ->name('login');
+
+    // Mot de passe oublié
+    Route::get('/mot-de-passe-oublie', [PasswordResetController::class, 'demande'])
+        ->name('password.request');
+
+    Route::post('/mot-de-passe-oublie', [PasswordResetController::class, 'envoyerLien'])
+        ->middleware('throttle:5,1')
+        ->name('password.email');
+
+    Route::get('/reinitialiser-mot-de-passe/{token}', [PasswordResetController::class, 'formulaire'])
+        ->name('password.reset');
+
+    Route::post('/reinitialiser-mot-de-passe', [PasswordResetController::class, 'reinitialiser'])
+        ->middleware('throttle:5,1')
+        ->name('password.update');
 });
 
 // Routes utilisateurs connectés

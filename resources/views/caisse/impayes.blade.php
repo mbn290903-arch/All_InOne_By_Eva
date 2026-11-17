@@ -3,6 +3,7 @@
 @section('page-title', 'Impayés')
 
 @section('content')
+    @include('caisse._onglets')
     @include('partials.alertes')
 
     <div class="rounded-xl border border-line bg-white p-4">
@@ -42,7 +43,9 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-8 text-center text-muted">Aucun impayé.</td></tr>
+                    <tr>
+                        <td colspan="7" class="px-4 py-8 text-center text-muted">Aucun impayé.</td>
+                    </tr>
                 @endforelse
             </tbody>
         </table>
