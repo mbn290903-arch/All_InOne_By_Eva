@@ -11,7 +11,11 @@ class ClientPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->is_active;
+        return $user->is_active
+            && (
+                $user->isAdmin()
+                || $user->hasPermission('clients.gerer')
+            );
     }
 
     /**
@@ -19,7 +23,11 @@ class ClientPolicy
      */
     public function view(User $user, Client $client): bool
     {
-        return $user->is_active;
+        return $user->is_active
+            && (
+                $user->isAdmin()
+                || $user->hasPermission('clients.gerer')
+            );
     }
 
     /**
@@ -27,7 +35,11 @@ class ClientPolicy
      */
     public function create(User $user): bool
     {
-        return $user->is_active;
+        return $user->is_active
+            && (
+                $user->isAdmin()
+                || $user->hasPermission('clients.gerer')
+            );
     }
 
     /**
@@ -36,19 +48,20 @@ class ClientPolicy
     public function update(User $user, Client $client): bool
     {
         return $user->is_active
-            && $client->archived_at === null;
+            && $client->archived_at === null
+            && (
+                $user->isAdmin()
+                || $user->hasPermission('clients.gerer')
+            );
     }
 
     /**
      * Archiver ou restaurer un client.
+     * Réservé à l'administratrice.
      */
     public function archive(User $user, Client $client): bool
     {
-        return $user->is_active
-            && (
-                $user->isAdmin()
-                || $user->hasPermission('clients.archive')
-            );
+        return $user->is_active && $user->isAdmin();
     }
 
     /**
@@ -59,7 +72,7 @@ class ClientPolicy
         return $user->is_active
             && (
                 $user->isAdmin()
-                || $user->hasPermission('clients.export')
+                || $user->hasPermission('clients.exporter')
             );
     }
 }
