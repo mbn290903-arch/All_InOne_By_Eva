@@ -86,7 +86,8 @@
 
         $cheminCourant = 'M' . $pointsCourants->implode(' L');
         $cheminPrecedent = 'M' . $pointsPrecedents->implode(' L');
-        $cheminZone = $cheminCourant . ' L' . $px($dernierPoint['jour']) . ' ' . $yBase . ' L' . $x0 . ' ' . $yBase . ' Z';
+        $cheminZone =
+            $cheminCourant . ' L' . $px($dernierPoint['jour']) . ' ' . $yBase . ' L' . $x0 . ' ' . $yBase . ' Z';
 
         $formatK = fn($v) => $v >= 1000
             ? rtrim(rtrim(number_format($v / 1000, 1, '.', ''), '0'), '.') . ' k'
@@ -97,8 +98,9 @@
         $cumul = 0;
         $segments = [];
         foreach ($repartitionPrestations as $i => $ligne) {
-            $part = $totalPrestations > 0 ? $ligne->total / $totalPrestations * 100 : 0;
-            $segments[] = $palette[$i % count($palette)] . ' ' . round($cumul, 2) . '% ' . round($cumul + $part, 2) . '%';
+            $part = $totalPrestations > 0 ? ($ligne->total / $totalPrestations) * 100 : 0;
+            $segments[] =
+                $palette[$i % count($palette)] . ' ' . round($cumul, 2) . '% ' . round($cumul + $part, 2) . '%';
             $cumul += $part;
         }
         $degrade = $segments ? 'conic-gradient(' . implode(', ', $segments) . ')' : 'conic-gradient(#eee9e7 0 100%)';
@@ -290,7 +292,7 @@
                     <span class="flex items-center gap-1.5 text-muted"><i
                             class="h-0.5 w-3 border-t border-dashed border-[#c8b29d]"></i>
                         {{ ucfirst($moisPrecedent) }}</span>
-                    <a href="#" class="font-medium text-wine">Voir le rapport</a>
+                    <a href="{{ route('rapports.index') }}" class="font-medium text-wine">Voir le rapport</a>
                 </div>
             </div>
             <div class="px-4 pb-3 pt-4">
@@ -302,7 +304,7 @@
                     <line x1="48" y1="150" x2="632" y2="150" class="chart-grid" />
 
                     <text x="4" y="21" class="chart-text">{{ $formatK($maxRecetteGraphique) }}</text>
-                    <text x="4" y="65" class="chart-text">{{ $formatK($maxRecetteGraphique * 2 / 3) }}</text>
+                    <text x="4" y="65" class="chart-text">{{ $formatK(($maxRecetteGraphique * 2) / 3) }}</text>
                     <text x="4" y="109" class="chart-text">{{ $formatK($maxRecetteGraphique / 3) }}</text>
                     <text x="27" y="153" class="chart-text">0</text>
 
@@ -310,8 +312,8 @@
                         stroke-dasharray="4 4" />
                     <path d="{{ $cheminZone }}" fill="#76243d" opacity=".06" />
                     <path d="{{ $cheminCourant }}" fill="none" stroke="#76243d" stroke-width="2" />
-                    <circle cx="{{ $px($dernierPoint['jour']) }}" cy="{{ $py($dernierPoint['courant']) }}"
-                        r="4" fill="white" stroke="#76243d" stroke-width="2" />
+                    <circle cx="{{ $px($dernierPoint['jour']) }}" cy="{{ $py($dernierPoint['courant']) }}" r="4"
+                        fill="white" stroke="#76243d" stroke-width="2" />
 
                     @foreach (array_unique([1, 7, 13, 19, 25, $joursMois]) as $j)
                         <text x="{{ $px($j) }}" y="170" class="chart-text">{{ $j }}</text>
@@ -409,7 +411,7 @@
                             <span class="text-muted">{{ $service->total }}</span>
                         </div>
                         <div class="h-[6px] rounded-full"
-                            style="width: {{ round($service->total / $maxService * 100) }}%; background: {{ $couleursServices[$i % count($couleursServices)] }}">
+                            style="width: {{ round(($service->total / $maxService) * 100) }}%; background: {{ $couleursServices[$i % count($couleursServices)] }}">
                         </div>
                     </div>
                 @empty
@@ -429,10 +431,10 @@
                         <div class="flex h-full flex-1 flex-col items-center justify-end gap-1">
                             <div class="flex h-[110px] items-end gap-1">
                                 <div class="w-[15px] rounded-t bg-[#ead4da]"
-                                    style="height: {{ round($colonne['recurrents'] / $maxClientele * 105) }}px"
+                                    style="height: {{ round(($colonne['recurrents'] / $maxClientele) * 105) }}px"
                                     title="{{ $colonne['recurrents'] }} récurrents"></div>
                                 <div class="w-[15px] rounded-t bg-wine"
-                                    style="height: {{ round($colonne['nouveaux'] / $maxClientele * 105) }}px"
+                                    style="height: {{ round(($colonne['nouveaux'] / $maxClientele) * 105) }}px"
                                     title="{{ $colonne['nouveaux'] }} nouveaux"></div>
                             </div>
                             <span class="text-[8px] text-muted">{{ $colonne['mois'] }}</span>
@@ -486,14 +488,17 @@
                     @php
                         $anniversairesAujourdhui = $anniversaires->filter(fn($a) => $a['date']->isToday());
                         $premier = $anniversairesAujourdhui->first() ?? $anniversaires->first();
-                        $agePremier = $premier['date']->year - \Carbon\CarbonImmutable::parse($premier['client']->date_naissance)->year;
+                        $agePremier =
+                            $premier['date']->year -
+                            \Carbon\CarbonImmutable::parse($premier['client']->date_naissance)->year;
                     @endphp
                     <div class="flex items-center gap-3 px-4 py-2.5">
                         <div class="icon-tile bg-[#fff1df] text-[#bd812f]"><i data-lucide="cake"></i></div>
                         <div class="min-w-0 flex-1">
                             <div class="text-[14px] font-semibold">
                                 {{ $anniversaires->count() }}
-                                {{ $anniversaires->count() > 1 ? 'anniversaires' : 'anniversaire' }} dans les 7 prochains jours
+                                {{ $anniversaires->count() > 1 ? 'anniversaires' : 'anniversaire' }} dans les 7 prochains
+                                jours
                             </div>
                             <div class="small-note">
                                 @if ($anniversairesAujourdhui->isNotEmpty())
@@ -502,7 +507,7 @@
                                     Prochain :
                                 @endif
                                 {{ $premier['client']->nomComplet }} ({{ $agePremier }} ans)
-                                @if (! $premier['date']->isToday())
+                                @if (!$premier['date']->isToday())
                                     le {{ $premier['date']->format('d/m') }}
                                 @endif
                             </div>
@@ -511,24 +516,64 @@
                     </div>
                 @endif
 
+
                 @if ($produitsEnAlerte->isNotEmpty())
-                    <div class="flex items-center gap-3 px-4 py-2.5">
-                        <div class="icon-tile bg-[#fbe9e9] text-[#bd5555]"><i data-lucide="package-alert"></i></div>
-                        <div class="min-w-0 flex-1">
-                            <div class="text-[14px] font-semibold">
-                                {{ $produitsEnAlerte->count() }}
-                                {{ $produitsEnAlerte->count() > 1 ? 'produits sont sous le seuil d\'alerte' : 'produit est sous le seuil d\'alerte' }}
+                    <div class="px-4 py-3">
+                        <div class="mb-3 flex items-center gap-3">
+                            <div class="icon-tile bg-[#fbe9e9] text-[#bd5555]">
+                                <i data-lucide="package-alert"></i>
                             </div>
-                            <div class="small-note">
-                                {{ $produitsEnAlerte->take(2)->map(fn($p) => $p->nom . ' (' . (float) $p->quantite . ' ' . $p->unite . ' / seuil ' . (float) $p->seuil_alerte . ')')->join(' · ') }}
-                                @if ($produitsEnAlerte->count() > 2)
-                                    · …
-                                @endif
+
+                            <div class="min-w-0 flex-1">
+                                <div class="text-[14px] font-semibold">
+                                    {{ $produitsEnAlerte->count() }}
+                                    {{ $produitsEnAlerte->count() > 1 ? "produits sous le seuil d'alerte" : "produit sous le seuil d'alerte" }}
+                                </div>
+                                <div class="small-note">
+                                    Des produits nécessitent un réapprovisionnement.
+                                </div>
                             </div>
+
+                            <a href="{{ route('stock.index') }}"
+                                class="text-[11px] font-medium text-wine hover:underline">
+                                Voir le stock
+                            </a>
                         </div>
-                        <a href="#" class="rounded-lg border border-[#ded8d6] px-3 py-1.5 text-[11px]">Approvisionner</a>
+
+                        <div class="space-y-2">
+                            @foreach ($produitsEnAlerte->take(3) as $produit)
+                                <div
+                                    class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#eee5e5] bg-[#fffafb] px-3 py-2">
+                                    <div class="min-w-0">
+                                        <div class="truncate text-[12px] font-semibold">
+                                            {{ $produit->nom }}
+                                        </div>
+                                        <div class="text-[11px] text-muted">
+                                            Stock : {{ (float) $produit->quantite }} {{ $produit->unite }}
+                                            · Seuil : {{ (float) $produit->seuil_alerte }}
+                                        </div>
+                                    </div>
+
+                                    <a href="{{ route('stock.entree.create', $produit) }}"
+                                        class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-wine px-3 py-2 text-[11px] font-medium text-white transition hover:bg-[#5d1b30]">
+                                        <i data-lucide="package-plus" class="h-3.5 w-3.5"></i>
+                                        Approvisionner
+                                    </a>
+                                </div>
+                            @endforeach
+
+                            @if ($produitsEnAlerte->count() > 3)
+                                <div class="pt-1 text-right">
+                                    <a href="{{ route('stock.index') }}"
+                                        class="text-[11px] font-medium text-wine hover:underline">
+                                        Voir les {{ $produitsEnAlerte->count() - 3 }} autres produits
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
                     </div>
                 @endif
+
 
                 @if ($nombreRendezVousImpayes > 0)
                     <div class="flex items-center gap-3 px-4 py-2.5">
@@ -593,4 +638,4 @@
         </div>
     </section>
 
-@endsection 
+@endsection

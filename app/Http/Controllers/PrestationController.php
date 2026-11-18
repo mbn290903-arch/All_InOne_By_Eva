@@ -76,7 +76,11 @@ class PrestationController extends Controller
         $servicesForfaits = DB::table('services')
             ->orderBy('nom')
             ->get();
-        return view('prestations.index', [
+        $vue = $request->routeIs('catalogue.index')
+            ? 'prestations.catalogue'
+            : 'prestations.index';
+
+        return view($vue, [
             'categories' => $categories,
             'groupes'    => $services->groupBy('categorie_nom'),
             'total'      => DB::table('services')->count(),
