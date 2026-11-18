@@ -9,15 +9,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * @property int $id
- * @property string $prenom
- * @property string $nom
- * @property string $telephone
- * @property string|null $whatsapp
- * @property \Illuminate\Support\Carbon|null $archived_at
- * @property int|null $archived_by
- */
 class Client extends Model
 {
     use HasFactory;
@@ -44,23 +35,38 @@ class Client extends Model
     protected function casts(): array
     {
         return [
-            'date_naissance'     => 'date',
-            'date_inscription'   => 'date',
+            'date_naissance' => 'date',
+            'date_inscription' => 'date',
             'consent_promotions' => 'boolean',
-            'consent_at'         => 'datetime',
-            'archived_at'        => 'datetime',
+            'consent_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 
+    /* --------------------------------------------------------------
+     | ATTRIBUTS
+     * --------------------------------------------------------------*/
+
     protected function nomComplet(): Attribute
     {
-        return Attribute::get(fn() => "{$this->prenom} {$this->nom}");
+        return Attribute::get(
+            fn() => "{$this->prenom} {$this->nom}"
+        );
     }
 
     public function getCodeAttribute(): string
     {
-        return 'CL-' . str_pad((string) $this->getKey(), 6, '0', STR_PAD_LEFT);
+        return 'CL-' . str_pad(
+            (string) $this->getKey(),
+            6,
+            '0',
+            STR_PAD_LEFT
+        );
     }
+
+    /* --------------------------------------------------------------
+     | RELATIONS
+     * --------------------------------------------------------------*/
 
     public function rendezVous(): HasMany
     {
@@ -82,10 +88,18 @@ class Client extends Model
         return $this->hasMany(AnniversaireTraite::class);
     }
 
+    /* --------------------------------------------------------------
+     | FIDÉLITÉ
+     * --------------------------------------------------------------*/
+
     public function soldePoints(): int
     {
         return (int) $this->mouvementsPoints()->sum('points');
     }
+
+    /* --------------------------------------------------------------
+     | HISTORIQUE
+     * --------------------------------------------------------------*/
 
     public function derniereVisite(): ?CarbonInterface
     {
@@ -95,13 +109,64 @@ class Client extends Model
             ->first()?->debut;
     }
 
+    /* --------------------------------------------------------------
+     | COMMUNICATION
+     * --------------------------------------------------------------*/
+
+    /**
+     * Retourne le numéro WhatsApp enregistré,
+     * ou le téléphone si les deux sont identiques.
+     */
     public function numeroWhatsApp(): string
     {
         return $this->whatsapp ?: $this->telephone;
     }
 
-    public function scopeRecherche(Builder $query, ?string $terme): void
+    /**
+     * Vérifie si le canal choisi est WhatsApp.
+     */
+    public function prefereWhatsApp(): bool
     {
+        return $this->canal_prefere === 'whatsapp';
+    }
+
+    /**
+     * Vérifie si le canal choisi est l'appel.
+     */
+    public function prefereAppel(): bool
+    {
+        return $this->canal_prefere === 'appel';
+    }
+
+    /**
+     * Vérifie si le canal choisi est le SMS.
+     */
+    public function prefereSms(): bool
+    {
+        return $this->canal_prefere === 'sms';
+    }
+
+    /**
+     * Retourne le libellé du canal préféré.
+     */
+    public function libelleCanalPrefere(): string
+    {
+        return match ($this->canal_prefere) {
+            'whatsapp' => 'WhatsApp',
+            'appel' => 'Appel téléphonique',
+            'sms' => 'SMS',
+            default => 'Non défini',
+        };
+    }
+
+    /* --------------------------------------------------------------
+     | RECHERCHE
+     * --------------------------------------------------------------*/
+
+    public function scopeRecherche(
+        Builder $query,
+        ?string $terme
+    ): void {
         $terme = trim((string) $terme);
 
         if ($terme === '') {
@@ -111,6 +176,7 @@ class Client extends Model
         $chiffres = preg_replace('/\D/', '', $terme);
 
         $query->where(function (Builder $q) use ($terme, $chiffres) {
+
             $q->where('prenom', 'like', "%{$terme}%")
                 ->orWhere('nom', 'like', "%{$terme}%");
 
@@ -121,25 +187,36 @@ class Client extends Model
         });
     }
 
+    /* --------------------------------------------------------------
+     | ARCHIVAGE
+     * --------------------------------------------------------------*/
+
     public function scopeNonArchives(Builder $query): void
     {
         $query->whereNull('archived_at');
     }
 
-/**
- * Clients dont la dernière prestation terminée date de plus de N jours.
- */
-public function scopeInactifsDepuis(Builder $query, int $jours): void
-{
-    $limite = now()->subDays($jours);
+    /* --------------------------------------------------------------
+     | CLIENTS INACTIFS
+     * --------------------------------------------------------------*/
 
-    $query->nonArchives()
-        ->whereHas('rendezVous', fn (Builder $q) =>
-            $q->where('statut', StatutRendezVous::Termine)
-        )
-        ->whereDoesntHave('rendezVous', fn (Builder $q) =>
-            $q->where('statut', StatutRendezVous::Termine)
-              ->where('debut', '>=', $limite)
-        );
-}
+    /**
+     * Clients dont la dernière prestation terminée
+     * date de plus de N jours.
+     */
+    public function scopeInactifsDepuis(
+        Builder $query,
+        int $jours
+    ): void {
+        $limite = now()->subDays($jours);
+
+        $query->nonArchives()
+            ->whereHas('rendezVous', fn(Builder $q) =>
+                $q->where('statut', StatutRendezVous::Termine)
+            )
+            ->whereDoesntHave('rendezVous', fn(Builder $q) =>
+                $q->where('statut', StatutRendezVous::Termine)
+                    ->where('debut', '>=', $limite)
+            );
+    }
 }

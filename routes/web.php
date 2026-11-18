@@ -371,7 +371,7 @@ Route::middleware('auth')->group(function () {
         });
 
     // Gestion du stock
-    Route::middleware('role:admin,receptionniste')
+    Route::middleware('admin')
         ->prefix('stock')
         ->name('stock.')
         ->group(function () {

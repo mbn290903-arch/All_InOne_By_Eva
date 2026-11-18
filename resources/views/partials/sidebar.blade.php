@@ -109,42 +109,51 @@
             @endif
         @endif
 
+
         {{-- GESTION --}}
-        @if ($adminOuReception)
-            <div class="nav-label"></div>
+        @if ($estAdmin)
 
-            @if ($estAdmin)
-                <a href="{{ route('depenses.index') }}"
-                    class="nav-link {{ request()->routeIs('depenses.*') ? 'active' : '' }}">
-                    <i data-lucide="receipt"></i>
-                    Dépenses
-                </a>
-            @endif
+            <div class="nav-label">GESTION</div>
 
-            {{-- Vérification sécurisée pour éviter le crash si la route 'stock.index' n'existe pas encore --}}
-            @if (config('stock.roles_lecture') && in_array($role, config('stock.roles_lecture')) && Route::has('stock.index'))
-                @php $nbAlertes = class_exists(\App\Models\Produit::class) ? \App\Models\Produit::stocksFaibles()->count() : 0; @endphp
+            {{-- Dépenses --}}
+            <a href="{{ route('depenses.index') }}"
+                class="nav-link {{ request()->routeIs('depenses.*') ? 'active' : '' }}">
+                <i data-lucide="receipt"></i>
+                Dépenses
+            </a>
+
+            {{-- Stocks --}}
+            @if (Route::has('stock.index'))
+                @php
+                    $nbAlertes = class_exists(\App\Models\Produit::class)
+                        ? \App\Models\Produit::stocksFaibles()->count()
+                        : 0;
+                @endphp
+
                 <a href="{{ route('stock.index') }}"
                     class="nav-link {{ request()->routeIs('stock.*') ? 'active' : '' }}">
                     <i data-lucide="package"></i>
                     Stocks
+
                     @if ($nbAlertes > 0)
-                        <span
-                            class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">{{ $nbAlertes }}</span>
+                        <span class="ml-auto rounded-full bg-[#fff2df] px-1.5 py-0.5 text-[9px] text-[#b77926]">
+                            {{ $nbAlertes }}
+                        </span>
                     @endif
                 </a>
             @endif
 
-            @if ($estAdmin)
-                @can('viewAny', App\Models\Employe::class)
-                    <a href="{{ route('employes.index') }}"
-                        class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
-                        <i data-lucide="contact-round"></i>
-                        Employés
-                    </a>
-                @endcan
-            @endif
+            {{-- Employés --}}
+            @can('viewAny', App\Models\Employe::class)
+                <a href="{{ route('employes.index') }}"
+                    class="nav-link {{ request()->routeIs('employes.*') ? 'active' : '' }}">
+                    <i data-lucide="contact-round"></i>
+                    Employés
+                </a>
+            @endcan
+
         @endif
+
 
         {{-- ADMINISTRATION --}}
         @if ($estAdmin)

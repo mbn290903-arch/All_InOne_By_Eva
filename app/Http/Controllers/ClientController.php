@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Client;
@@ -15,8 +16,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ClientController extends Controller
 {
     /* ------------------------------------------------------------------
-     |  LISTE
+     | LISTE
      * ----------------------------------------------------------------*/
+
     public function index(Request $request)
     {
         Gate::authorize('viewAny', Client::class);
@@ -25,9 +27,12 @@ class ClientController extends Controller
         $tab = $request->get('tab', 'tous');
         $tri = $request->get('tri', 'recent');
 
-        $clients = $this->filtered($request)->paginate(20)->withQueryString();
+        $clients = $this->filtered($request)
+            ->paginate(20)
+            ->withQueryString();
 
         $actifs = Client::whereNull('archived_at');
+
         $stats = [
             'tous'         => (clone $actifs)->count(),
             'actifs'       => (clone $actifs)->where('statut', 'actif')->count(),
@@ -37,49 +42,95 @@ class ClientController extends Controller
         ];
 
         $doublons = Client::whereNull('archived_at')
-            ->select('telephone')->groupBy('telephone')
-            ->havingRaw('count(*) > 1')->pluck('telephone');
+            ->select('telephone')
+            ->groupBy('telephone')
+            ->havingRaw('count(*) > 1')
+            ->pluck('telephone');
 
-        return view('clients.index', compact('clients', 'stats', 'doublons', 'q', 'tab', 'tri'));
+        return view('clients.index', compact(
+            'clients',
+            'stats',
+            'doublons',
+            'q',
+            'tab',
+            'tri'
+        ));
     }
+
+    /* ------------------------------------------------------------------
+     | CRÉATION : FORMULAIRE
+     * ----------------------------------------------------------------*/
 
     public function create()
     {
         Gate::authorize('create', Client::class);
 
-        $nextCode = 'CL-' . str_pad((Client::max('id') ?? 0) + 1, 6, '0', STR_PAD_LEFT);
+        $nextCode = 'CL-' . str_pad(
+            (Client::max('id') ?? 0) + 1,
+            6,
+            '0',
+            STR_PAD_LEFT
+        );
 
         return view('clients.create', compact('nextCode'));
     }
+
+    /* ------------------------------------------------------------------
+     | FICHE CLIENT
+     * ----------------------------------------------------------------*/
 
     public function show(Client $client)
     {
         Gate::authorize('view', $client);
 
-        $wa   = $this->messagesWhatsApp($client);
         $user = auth()->user();
+
+        // WhatsApp uniquement si la cliente a choisi ce canal
+        // et si l'utilisateur possède la permission nécessaire.
+        $peutWa = $client->canal_prefere === 'whatsapp'
+            && ($user->isAdmin() || $user->hasPermission('whatsapp.envoyer'));
+
+        // Les messages ne sont préparés que si WhatsApp est autorisé.
+        $wa = $peutWa
+            ? $this->messagesWhatsApp($client)
+            : [
+                'messages' => [],
+                'rdv_trouve' => false,
+            ];
 
         return view('clients.show', [
             'client'     => $client,
             'messagesWa' => $wa['messages'],
             'rdvTrouve'  => $wa['rdv_trouve'],
-            'waNumero'   => WhatsAppService::normaliser($client->whatsapp ?: $client->telephone),
-            'peutWa'     => $user->isAdmin() || $user->hasPermission('whatsapp.envoyer'),
+
+            'waNumero' => $client->canal_prefere === 'whatsapp'
+                ? WhatsAppService::normaliser(
+                    $client->whatsapp ?: $client->telephone
+                )
+                : null,
+
+            'peutWa' => $peutWa,
         ]);
     }
 
     /* ------------------------------------------------------------------
-     |  CRÉATION
+     | CRÉATION : ENREGISTREMENT
      * ----------------------------------------------------------------*/
+
     public function store(Request $request)
     {
         Gate::authorize('create', Client::class);
 
         $data = $this->validated($request);
 
-        // BUG 1 corrigé : « Créer quand même » (force=1) est enfin lu.
-        if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'])) {
-            return back()->withInput()->with('doublon', $this->infosDoublon($existant));
+        // Détection des doublons téléphoniques.
+        if (
+            ! $request->boolean('force')
+            && $existant = $this->doublon($data['telephone'])
+        ) {
+            return back()
+                ->withInput()
+                ->with('doublon', $this->infosDoublon($existant));
         }
 
         $consent = $request->boolean('consent_promotions');
@@ -88,18 +139,20 @@ class ClientController extends Controller
             'date_inscription'   => now()->toDateString(),
             'consent_promotions' => $consent,
             'consent_at'         => $consent ? now() : null,
-            'consent_par'        => $consent ? auth()->id() : null,   // BUG 4 corrigé
         ]);
 
-        return redirect()->route('clients.index')->with('status', [
-            'Client enregistré',
-            "{$client->prenom} {$client->nom} ({$this->code($client)}) a été ajouté(e).",
-        ]);
+        return redirect()
+            ->route('clients.index')
+            ->with('status', [
+                'Client enregistré',
+                "{$client->prenom} {$client->nom} ({$this->code($client)}) a été ajouté(e).",
+            ]);
     }
 
     /* ------------------------------------------------------------------
-     |  MODIFICATION
+     | MODIFICATION : FORMULAIRE
      * ----------------------------------------------------------------*/
+
     public function edit(Client $client)
     {
         Gate::authorize('update', $client);
@@ -109,37 +162,50 @@ class ClientController extends Controller
         return view('clients.edit', compact('client', 'nextCode'));
     }
 
+    /* ------------------------------------------------------------------
+     | MODIFICATION : ENREGISTREMENT
+     * ----------------------------------------------------------------*/
+
     public function update(Request $request, Client $client)
     {
         Gate::authorize('update', $client);
 
         $data = $this->validated($request);
 
-        if (! $request->boolean('force') && $existant = $this->doublon($data['telephone'], $client->id)) {
-            return back()->withInput()->with('doublon', $this->infosDoublon($existant));
+        if (
+            ! $request->boolean('force')
+            && $existant = $this->doublon($data['telephone'], $client->id)
+        ) {
+            return back()
+                ->withInput()
+                ->with('doublon', $this->infosDoublon($existant));
         }
 
-        // La date et l'auteur du consentement ne changent que si la valeur change.
+        // Le consentement et son historique ne changent
+        // que si la valeur a réellement été modifiée.
         $consent = $request->boolean('consent_promotions');
+
         if ($consent !== (bool) $client->consent_promotions) {
             $data += [
                 'consent_promotions' => $consent,
                 'consent_at'         => now(),
-                'consent_par'        => auth()->id(),
             ];
         }
 
         $client->update($data);
 
-        return redirect()->route('clients.show', $client)->with('status', [
-            'Fiche mise à jour',
-            "{$client->prenom} {$client->nom} ({$this->code($client)}).",
-        ]);
+        return redirect()
+            ->route('clients.show', $client)
+            ->with('status', [
+                'Fiche mise à jour',
+                "{$client->prenom} {$client->nom} ({$this->code($client)}).",
+            ]);
     }
 
     /* ------------------------------------------------------------------
-     |  ARCHIVAGE (jamais de suppression)
+     | ARCHIVAGE (JAMAIS DE SUPPRESSION)
      * ----------------------------------------------------------------*/
+
     public function archive(Client $client)
     {
         Gate::authorize('archive', $client);
@@ -150,32 +216,41 @@ class ClientController extends Controller
             'archived_by' => auth()->id(),
         ]);
 
-        return redirect()->route('clients.index')->with('status', [
-            'Client archivé',
-            "{$client->prenom} {$client->nom} est archivé(e). L'historique est conservé.",
-        ]);
+        return redirect()
+            ->route('clients.index')
+            ->with('status', [
+                'Client archivé',
+                "{$client->prenom} {$client->nom} est archivé(e). L'historique est conservé.",
+            ]);
     }
 
     public function restore(Client $client)
     {
         Gate::authorize('archive', $client);
 
-        $client->update(['archived_at' => null, 'archived_by' => null]);
-
-        return redirect()->route('clients.show', $client)->with('status', [
-            'Client restauré',
-            "{$client->prenom} {$client->nom} est de nouveau dans la liste (statut inactif).",
+        $client->update([
+            'archived_at' => null,
+            'archived_by' => null,
         ]);
+
+        return redirect()
+            ->route('clients.show', $client)
+            ->with('status', [
+                'Client restauré',
+                "{$client->prenom} {$client->nom} est de nouveau dans la liste (statut inactif).",
+            ]);
     }
 
     /* ------------------------------------------------------------------
-     |  EXPORT CSV
+     | EXPORT CSV
      * ----------------------------------------------------------------*/
+
     public function export(Request $request): StreamedResponse
     {
         Gate::authorize('export', Client::class);
 
-        $query    = $this->filtered($request)->reorder();
+        $query = $this->filtered($request)->reorder();
+
         $filename = 'clients-' . now()->format('Ymd-His') . '.csv';
 
         Log::info('Export clients CSV', [
@@ -184,10 +259,19 @@ class ClientController extends Controller
         ]);
 
         return response()->streamDownload(function () use ($query) {
-            $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF"); // BOM UTF-8 pour Excel
 
-            $put = fn(array $row) => fputcsv($out, array_map([$this, 'csvSafe'], $row), ';', '"', '');
+            $out = fopen('php://output', 'w');
+
+            // BOM UTF-8 pour Excel.
+            fwrite($out, "\xEF\xBB\xBF");
+
+            $put = fn(array $row) => fputcsv(
+                $out,
+                array_map([$this, 'csvSafe'], $row),
+                ';',
+                '"',
+                ''
+            );
 
             $put([
                 'Identifiant',
@@ -203,10 +287,11 @@ class ClientController extends Controller
                 'Consentement promo',
                 'Date consentement',
                 'Statut',
-                'Archivé le'
+                'Archivé le',
             ]);
 
             $query->chunkById(500, function ($rows) use ($put) {
+
                 foreach ($rows as $c) {
                     $put([
                         $this->code($c),
@@ -228,22 +313,24 @@ class ClientController extends Controller
             });
 
             fclose($out);
-        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     /* ==================================================================
-     |  OUTILS PRIVÉS
-     * ================================================================*/
+     | OUTILS PRIVÉS
+     * =================================================================*/
 
     /**
-     * Messages WhatsApp prêts à l'emploi pour cette cliente (modèles modifiables dans Paramètres).
-     * Le rappel de rendez-vous reprend le prochain rendez-vous à venir (date, heure, prestations).
-     * Promotion et fidélisation : réservés aux clientes qui ont accepté les promotions.
+     * Messages WhatsApp prêts à l'emploi.
+     * Les promotions et la fidélisation nécessitent le consentement.
      */
     private function messagesWhatsApp(Client $client): array
     {
         $consent = (bool) $client->consent_promotions;
-        $titres  = ModeleMessage::pluck('titre', 'type');
+
+        $titres = ModeleMessage::pluck('titre', 'type');
 
         $rdv = DB::table('rendez_vous')
             ->where('client_id', $client->id)
@@ -252,42 +339,80 @@ class ClientController extends Controller
             ->orderBy('debut')
             ->first();
 
-        $vars = ['prenom' => $client->prenom, 'nom' => $client->nom];
+        $vars = [
+            'prenom' => $client->prenom,
+            'nom'    => $client->nom,
+        ];
 
         if ($rdv) {
-            $debut      = Carbon::parse($rdv->debut);
-            $prestation = DB::table('rendez_vous_service')->where('rendez_vous_id', $rdv->id)->pluck('libelle')->implode(', ');
+            $debut = Carbon::parse($rdv->debut);
+
+            $prestation = DB::table('rendez_vous_service')
+                ->where('rendez_vous_id', $rdv->id)
+                ->pluck('libelle')
+                ->implode(', ');
+
             $vars += [
                 'date'       => $debut->translatedFormat('l j F'),
                 'heure'      => $debut->format('H:i'),
-                'prestation' => $prestation !== '' ? $prestation : 'votre prestation',
+                'prestation' => $prestation !== ''
+                    ? $prestation
+                    : 'votre prestation',
             ];
         }
 
-        $offre = trim((string) DB::table('parametres_salon')->where('cle', 'offre_anniversaire')->value('valeur')) ?: null;
+        $offre = trim(
+            (string) DB::table('parametres_salon')
+                ->where('cle', 'offre_anniversaire')
+                ->value('valeur')
+        ) ?: null;
 
         $messages = [];
-        foreach (array_keys(WhatsAppService::DEFAUTS) as $type) {
-            $texte = $type === 'anniversaire'
-                ? WhatsAppService::anniversaire($client->prenom, $consent ? $offre : null)
-                : WhatsAppService::rendre(WhatsAppService::gabarit($type), $vars);
 
-            $autorise = in_array($type, ['promotion', 'fidelisation'], true) ? $consent : true;
+        foreach (array_keys(WhatsAppService::DEFAUTS) as $type) {
+
+            $texte = $type === 'anniversaire'
+                ? WhatsAppService::anniversaire(
+                    $client->prenom,
+                    $consent ? $offre : null
+                )
+                : WhatsAppService::rendre(
+                    WhatsAppService::gabarit($type),
+                    $vars
+                );
+
+            $autorise = in_array(
+                $type,
+                ['promotion', 'fidelisation'],
+                true
+            ) ? $consent : true;
 
             $messages[$type] = [
                 'titre'    => $titres[$type] ?? ucfirst($type),
                 'texte'    => $texte,
                 'autorise' => $autorise,
-                'raison'   => $autorise ? null : 'pas de consentement aux promotions',
+                'raison'   => $autorise
+                    ? null
+                    : 'pas de consentement aux promotions',
             ];
         }
 
-        $messages['libre'] = ['titre' => 'Message libre', 'texte' => "Bonjour {$client->prenom}, ", 'autorise' => true, 'raison' => null];
+        $messages['libre'] = [
+            'titre'    => 'Message libre',
+            'texte'    => "Bonjour {$client->prenom}, ",
+            'autorise' => true,
+            'raison'   => null,
+        ];
 
-        return ['messages' => $messages, 'rdv_trouve' => (bool) $rdv];
+        return [
+            'messages'    => $messages,
+            'rdv_trouve' => (bool) $rdv,
+        ];
     }
 
-    /** Requête filtrée, partagée par la liste et l'export. */
+    /**
+     * Requête filtrée partagée par la liste et l'export.
+     */
     private function filtered(Request $request): Builder
     {
         $q   = trim((string) $request->q);
@@ -296,18 +421,28 @@ class ClientController extends Controller
 
         $query = Client::query();
 
-        $tab === 'archives'
-            ? $query->whereNotNull('archived_at')
-            : $query->whereNull('archived_at');
+        if ($tab === 'archives') {
+            $query->whereNotNull('archived_at');
+        } else {
+            $query->whereNull('archived_at');
+        }
 
         if ($q !== '') {
+
             $digits = preg_replace('/\D/', '', $q);
+
             $query->where(function ($w) use ($q, $digits) {
-                // Chaque mot saisi doit se retrouver dans le prénom OU le nom :
-                // « Mariama Ba » fonctionne (avant, seul un prénom ou un nom seul marchait).
+
                 $w->where(function ($n) use ($q) {
-                    foreach (preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY) as $mot) {
-                        $n->where(fn($x) => $x->where('prenom', 'like', "%{$mot}%")->orWhere('nom', 'like', "%{$mot}%"));
+
+                    foreach (
+                        preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY)
+                        as $mot
+                    ) {
+                        $n->where(function ($x) use ($mot) {
+                            $x->where('prenom', 'like', "%{$mot}%")
+                                ->orWhere('nom', 'like', "%{$mot}%");
+                        });
                     }
                 });
 
@@ -315,7 +450,8 @@ class ClientController extends Controller
                     $w->orWhere('telephone', 'like', "%{$digits}%")
                         ->orWhere('whatsapp', 'like', "%{$digits}%");
                 }
-                // Recherche par identifiant : CL-000012 ou CL000012
+
+                // Recherche par identifiant : CL-000012 ou CL000012.
                 if (preg_match('/^CL-?0*(\d+)$/i', $q, $m)) {
                     $w->orWhere('id', (int) $m[1]);
                 }
@@ -325,25 +461,26 @@ class ClientController extends Controller
         if ($tab === 'actifs') {
             $query->where('statut', 'actif');
         }
+
         if ($tab === 'inactifs') {
             $query->where('statut', 'inactif');
         }
+
         if ($tab === 'anniversaire') {
             $this->anniversaire($query);
         }
 
-        $tri === 'nom'
-            ? $query->orderBy('nom')->orderBy('prenom')
-            : $query->orderByDesc('id');
+        if ($tri === 'nom') {
+            $query->orderBy('nom')->orderBy('prenom');
+        } else {
+            $query->orderByDesc('id');
+        }
 
         return $query;
     }
 
     /**
-     * Anniversaires des 30 prochains jours, en SQL (plus de ->get() sur toute la table).
-     * On compare le « mois-jour » à la liste des 31 prochains jours du calendrier réel :
-     * pas de décalage au 29 février (une personne née un 29/02 apparaît le 29/02 les
-     * années bissextiles ; en année normale, ajoutez '02-28' si vous voulez la fêter).
+     * Anniversaires des 30 prochains jours.
      */
     private function anniversaire(Builder $query): Builder
     {
@@ -355,49 +492,111 @@ class ClientController extends Controller
             ? "strftime('%m-%d', date_naissance)"
             : "DATE_FORMAT(date_naissance, '%m-%d')";
 
-        return $query->whereNotNull('date_naissance')
-            ->whereRaw("{$expr} in (" . implode(',', array_fill(0, count($jours), '?')) . ')', $jours);
+        return $query
+            ->whereNotNull('date_naissance')
+            ->whereRaw(
+                "{$expr} in (" .
+                    implode(',', array_fill(0, count($jours), '?')) .
+                    ')',
+                $jours
+            );
     }
 
-    /** Normalise puis valide. BUG 2 et 3 : noms de champs uniques + champ `public`. */
+    /**
+     * Normalise puis valide les informations.
+     *
+     * Une seule préférence de communication :
+     * - whatsapp
+     * - appel
+     * - sms
+     */
     private function validated(Request $request): array
     {
-        $tel = preg_replace('/\D/', '', (string) $request->telephone);
-        $wa  = $request->boolean('whatsapp_same') ? $tel : preg_replace('/\D/', '', (string) $request->whatsapp);
-        $request->merge(['telephone' => $tel, 'whatsapp' => $wa]);
+        $tel = preg_replace(
+            '/\D/',
+            '',
+            (string) $request->telephone
+        );
+
+        $canal = $request->input('canal_prefere');
+
+        // Le numéro WhatsApp n'est conservé que si WhatsApp est choisi.
+        if ($canal === 'whatsapp') {
+
+            $wa = $request->boolean('whatsapp_same')
+                ? $tel
+                : preg_replace(
+                    '/\D/',
+                    '',
+                    (string) $request->whatsapp
+                );
+        } else {
+            $wa = null;
+        }
+
+        $request->merge([
+            'telephone' => $tel,
+            'whatsapp'  => $wa !== '' ? $wa : null,
+        ]);
 
         return $request->validate([
+
             'prenom'         => 'required|string|max:80',
             'nom'            => 'required|string|max:80',
+
             'public'         => 'nullable|in:femme,homme,enfant',
             'date_naissance' => 'nullable|date|before:today',
-            'telephone'      => 'required|digits:9',
-            'whatsapp'       => 'required|digits:9',
-            'email'          => 'nullable|email|max:120',
-            'canal_prefere'  => 'required|in:whatsapp,appel,sms',
-            'notes'          => 'nullable|string|max:1000',
-            'statut'         => 'required|in:actif,inactif',
+
+            'telephone' => 'required|digits:9',
+
+            'whatsapp' => 'nullable|required_if:canal_prefere,whatsapp|digits:9',
+
+            'email'         => 'nullable|email|max:120',
+            'canal_prefere' => 'required|in:whatsapp,appel,sms',
+
+            'notes'  => 'nullable|string|max:1000',
+            'statut' => 'required|in:actif,inactif',
+
         ], [
-            'prenom.required'        => 'Le prénom est obligatoire.',
-            'nom.required'           => 'Le nom est obligatoire.',
-            'public.required'        => 'Précisez le public (femme, homme ou enfant).',
-            'public.in'              => 'Public invalide.',
-            'telephone.required'     => 'Le téléphone est obligatoire.',
-            'telephone.digits'       => 'Numéro incomplet : 9 chiffres attendus.',
-            'whatsapp.required'      => 'Le numéro WhatsApp est obligatoire.',
-            'whatsapp.digits'        => 'Numéro incomplet : 9 chiffres attendus.',
-            'email.email'            => 'Adresse e-mail invalide.',
-            'date_naissance.before'  => 'La date de naissance doit être dans le passé.',
+
+            'prenom.required' => 'Le prénom est obligatoire.',
+            'nom.required'    => 'Le nom est obligatoire.',
+
+            'public.in' => 'Public invalide.',
+
+            'telephone.required' => 'Le téléphone est obligatoire.',
+            'telephone.digits' => 'Le numéro de téléphone doit contenir 9 chiffres.',
+
+            'whatsapp.required_if' => 'Le numéro WhatsApp est obligatoire lorsque WhatsApp est choisi.',
+            'whatsapp.digits' => 'Le numéro WhatsApp doit contenir 9 chiffres.',
+
+            'canal_prefere.required' => 'Choisissez un moyen de communication.',
+            'canal_prefere.in' => 'Le moyen de communication sélectionné est invalide.',
+
+            'email.email' => 'Adresse e-mail invalide.',
+
+            'date_naissance.before' => 'La date de naissance doit être dans le passé.',
         ]);
     }
 
-    private function doublon(string $telephone, ?int $ignorerId = null): ?Client
-    {
+    /**
+     * Recherche un éventuel doublon téléphonique.
+     */
+    private function doublon(
+        string $telephone,
+        ?int $ignorerId = null
+    ): ?Client {
         return Client::where('telephone', $telephone)
-            ->when($ignorerId, fn($q) => $q->where('id', '!=', $ignorerId))
+            ->when(
+                $ignorerId,
+                fn($q) => $q->where('id', '!=', $ignorerId)
+            )
             ->first();
     }
 
+    /**
+     * Informations du doublon.
+     */
     private function infosDoublon(Client $c): array
     {
         return [
@@ -407,16 +606,28 @@ class ClientController extends Controller
         ];
     }
 
+    /**
+     * Identifiant client.
+     */
     private function code(Client $c): string
     {
-        return 'CL-' . str_pad($c->id, 6, '0', STR_PAD_LEFT);
+        return 'CL-' . str_pad(
+            $c->id,
+            6,
+            '0',
+            STR_PAD_LEFT
+        );
     }
 
-    /** Neutralise l'injection de formules (=, +, -, @, tab, retour chariot) dans Excel/Sheets. */
+    /**
+     * Neutralise l'injection de formules Excel/Sheets.
+     */
     private function csvSafe($value): string
     {
         $value = (string) $value;
 
-        return preg_match('/^[=+\-@\t\r]/', $value) ? "'" . $value : $value;
+        return preg_match('/^[=+\-@\t\r]/', $value)
+            ? "'" . $value
+            : $value;
     }
 }

@@ -201,19 +201,33 @@
                         Les rappels de rendez-vous restent possibles.</p>
                 </div>
                 <div>
-                    <span class="mb-1.5 block text-[13px] font-medium">Canal préféré</span>
+                    <span class="mb-1.5 block text-[13px] font-medium">
+                        Moyen de communication préféré
+                        <span class="text-brand-600">*</span>
+                    </span>
+                    <p class="mb-3 text-xs text-neutral-500">
+                        Choisissez un seul moyen de communication pour cette cliente.
+                    </p>
                     <div class="grid gap-3 sm:grid-cols-3">
-                        @foreach ([['whatsapp', 'WhatsApp', 'Messages préremplis'], ['appel', 'Appel', 'Téléphone'], ['sms', 'SMS', 'Hors application']] as [$v, $t, $d])
+                        @foreach ([['whatsapp', 'WhatsApp', 'Recevoir les messages WhatsApp'], ['appel', 'Appel téléphonique', 'Être contactée par téléphone'], ['sms', 'SMS', 'Recevoir des SMS']] as [$v, $t, $d])
                             <label class="cursor-pointer">
-                                <input type="radio" name="canal_prefere" value="{{ $v }}"
+                                <input type="radio" name="canal_prefere" value="{{ $v }}" required
                                     class="peer sr-only" {{ old('canal_prefere', 'whatsapp') === $v ? 'checked' : '' }}>
+
                                 <span
-                                    class="block rounded-lg border border-neutral-200 p-3 text-sm peer-checked:border-brand-600 peer-checked:bg-brand-50 peer-checked:ring-1 peer-checked:ring-brand-600 peer-focus-visible:ring-2">
-                                    <strong class="block font-semibold">{{ $t }}</strong><span
-                                        class="text-xs text-neutral-500">{{ $d }}</span>
+                                    class="block rounded-lg border border-neutral-200 p-3 text-sm
+            peer-checked:border-brand-600
+            peer-checked:bg-brand-50
+            peer-checked:ring-1
+            peer-checked:ring-brand-600">
+                                    <strong class="block font-semibold">{{ $t }}</strong>
+                                    <span class="text-xs text-neutral-500">{{ $d }}</span>
                                 </span>
                             </label>
                         @endforeach
+                        @error('canal_prefere')
+                            <p class="mt-2 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
                     </div>
                     <label
                         class="mt-4 flex cursor-pointer gap-3 rounded-lg border border-neutral-200 p-3 has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50">
