@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}?v=3">
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v=3">
     <title>Tableau de bord — All in One</title>
 
     {{-- Tailwind CSS --}}

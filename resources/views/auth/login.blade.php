@@ -7,6 +7,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Connexion — All in One by Eva</title>
 
+     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}?v=3">
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v=3">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link

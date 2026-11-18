@@ -9,6 +9,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}?v=3">
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v=3">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
