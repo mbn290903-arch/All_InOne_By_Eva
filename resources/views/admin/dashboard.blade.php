@@ -290,7 +290,7 @@
                     <span class="flex items-center gap-1.5 text-muted"><i
                             class="h-0.5 w-3 border-t border-dashed border-[#c8b29d]"></i>
                         {{ ucfirst($moisPrecedent) }}</span>
-                    <a href="#" class="font-medium text-wine">Voir le rapport</a>
+                    <a href="{{route('rapports.index')}}" class="font-medium text-wine">Voir le rapport</a>
                 </div>
             </div>
             <div class="px-4 pb-3 pt-4">
