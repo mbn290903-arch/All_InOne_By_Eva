@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Services;
 
 use App\Enums\StatutRendezVous;
@@ -64,22 +63,35 @@ class RendezVousService
     /**
      * Modifier un rendez-vous.
      */
+
     public function mettreAJour(
         RendezVous $rendezVous,
         array $donnees
     ): RendezVous {
 
-        if (in_array(
-            $rendezVous->statut,
-            [StatutRendezVous::Termine, StatutRendezVous::Annule],
-            true
-        )) {
-            throw new RegleMetierException(
-                'Un rendez-vous terminé ou annulé ne peut plus être modifié.'
-            );
-        }
-
         return DB::transaction(function () use ($rendezVous, $donnees) {
+
+            // Recharger et verrouiller le rendez-vous.
+            $rendezVous = RendezVous::query()
+                ->lockForUpdate()
+                ->findOrFail($rendezVous->id);
+
+            if (in_array(
+                $rendezVous->statut,
+                [StatutRendezVous::Termine, StatutRendezVous::Annule],
+                true
+            )) {
+                throw new RegleMetierException(
+                    'Un rendez-vous terminé ou annulé ne peut plus être modifié.'
+                );
+            }
+
+            // Protéger l'historique des paiements.
+            if ($rendezVous->paiements()->exists()) {
+                throw new RegleMetierException(
+                    'Ce rendez-vous possède un historique de paiement. Sa modification est interdite.'
+                );
+            }
 
             [$employe, $lignes, $debut, $fin, $zone] =
                 $this->preparer($donnees, $rendezVous->id);
@@ -95,7 +107,6 @@ class RendezVousService
             ]);
 
             $rendezVous->lignes()->delete();
-
             $rendezVous->lignes()->createMany($lignes->all());
 
             $this->audit->logChangements('rdv.modifie', $rendezVous);
@@ -104,24 +115,38 @@ class RendezVousService
         });
     }
 
+
     /**
      * Changer le statut d'un rendez-vous.
      */
+
     public function changerStatut(
         RendezVous $rendezVous,
         StatutRendezVous $statut
     ): RendezVous {
 
-        $ancien = $rendezVous->statut;
+        return DB::transaction(function () use ($rendezVous, $statut) {
 
-        if ($ancien === $statut) {
-            return $rendezVous;
-        }
+            // Recharger et verrouiller le rendez-vous.
+            $rendezVous = RendezVous::query()
+                ->lockForUpdate()
+                ->findOrFail($rendezVous->id);
 
-        DB::transaction(function () use ($rendezVous, $statut, $ancien) {
+            $ancien = $rendezVous->statut;
+
+            if ($ancien === $statut) {
+                return $rendezVous;
+            }
+
+            // Un rendez-vous terminé ne peut plus revenir en arrière.
+            if ($ancien === StatutRendezVous::Termine) {
+                throw new RegleMetierException(
+                    'Un rendez-vous terminé ne peut plus changer de statut.'
+                );
+            }
 
             $rendezVous->update([
-                'statut' => $statut
+                'statut' => $statut,
             ]);
 
             $this->audit->log(
@@ -131,13 +156,16 @@ class RendezVousService
                 ['statut' => $statut->value]
             );
 
+            // Créditer les points uniquement au passage à Terminé,
+            // si le rendez-vous est intégralement payé.
             if ($statut === StatutRendezVous::Termine) {
                 $this->fidelite->crediterSiEligible($rendezVous);
             }
-        });
 
-        return $rendezVous;
+            return $rendezVous;
+        });
     }
+
     /**
      * Déplacer un rendez-vous à une nouvelle date/heure (même durée).
      * Un rendez-vous annulé ou absent repasse « En attente ».
