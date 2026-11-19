@@ -228,7 +228,7 @@
                                 </div>
                                 <div class="truncate text-[11px] text-muted">
                                     {{ $rdv->debut->format('H:i') }} · reste
-                                    {{ $f($rdv->prix_prevu - (int) $rdv->paye) }} FCFA
+                                    reste {{ $f($rdv->resteAPayer()) }} FCFA
                                 </div>
                             </div>
 

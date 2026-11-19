@@ -11,32 +11,33 @@ class ProductionSeeder extends Seeder
 {
     public function run(): void
     {
-        // Déjà initialisé : on ne refait rien (sûr à chaque redémarrage).
-        if (User::query()->exists()) {
-            return;
+        if (! Role::query()->exists()) {
+            $this->call([
+                RoleSeeder::class,
+                SalonSeeder::class,
+                ModePaiementSeeder::class,
+                PermissionSeeder::class,
+                CategorieDepenseSeeder::class,
+            ]);
         }
 
-        $email = env('ADMIN_EMAIL');
-        $motDePasse = env('ADMIN_PASSWORD');
+        $this->creerUtilisateur('ADMIN', 'admin', 'Administratrice');
+        $this->creerUtilisateur('RECEPTION', 'receptionniste', 'Réceptionniste');
+    }
+
+    private function creerUtilisateur(string $prefixe, string $role, string $nomParDefaut): void
+    {
+        $email = env("{$prefixe}_EMAIL");
+        $motDePasse = env("{$prefixe}_PASSWORD");
 
         if (! $email || ! $motDePasse) {
-            $this->command->error('ADMIN_EMAIL et ADMIN_PASSWORD sont obligatoires.');
             return;
         }
 
-        $this->call([
-            RoleSeeder::class,
-            SalonSeeder::class,
-            ModePaiementSeeder::class,
-            PermissionSeeder::class,
-            CategorieDepenseSeeder::class,
-        ]);
-
-        User::create([
-            'name' => env('ADMIN_NAME', 'Administratrice'),
-            'email' => $email,
+        User::firstOrCreate(['email' => $email], [
+            'name' => env("{$prefixe}_NAME", $nomParDefaut),
             'password' => Hash::make($motDePasse),
-            'role_id' => Role::query()->where('name', 'admin')->value('id'),
+            'role_id' => Role::query()->where('name', $role)->value('id'),
             'is_active' => true,
         ]);
     }

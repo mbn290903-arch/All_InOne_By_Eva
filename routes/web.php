@@ -99,13 +99,12 @@ Route::middleware('auth')->group(function () {
         $rdvJour = \App\Models\RendezVous::whereBetween('debut', [$debutJour, $finJour])->get();
 
         $totalJour = $rdvJour->count();
-        $termines = $rdvJour->where('statut', 'termine')->count();
+        $termines = $rdvJour->filter(fn($r) => $r->statut->value === 'termine')->count();
 
-        $restants = $rdvJour->where('fin', '>=', $now)
-            ->whereNotIn('statut', ['termine', 'annule'])
-            ->count();
+        $restants = $rdvJour->filter(fn($r) => $r->fin >= $now
+            && ! in_array($r->statut->value, ['termine', 'annule'], true))->count();
 
-        $enAttente = $rdvJour->where('statut', 'en_attente')->count();
+        $enAttente = $rdvJour->filter(fn($r) => $r->statut->value === 'en_attente')->count();
 
         $clientsDuJour = \App\Models\Client::whereBetween('created_at', [$debutJour, $finJour])->count();
 
@@ -119,9 +118,11 @@ Route::middleware('auth')->group(function () {
             ->orderBy('debut', 'asc')
             ->get();
 
-        $aEncaisser = \App\Models\RendezVous::with(['client'])
+        $aEncaisser = \App\Models\RendezVous::with('client')
             ->whereBetween('debut', [$debutJour, $finJour])
             ->where('statut', '!=', 'annule')
+            ->avecReste()
+            ->orderBy('debut')
             ->get();
 
         $rdvDemain = \App\Models\RendezVous::with([
@@ -165,28 +166,20 @@ Route::middleware('auth')->group(function () {
         }
 
         $minutes = function ($rdv) {
-
             if (isset($rdv->debut) && isset($rdv->fin)) {
                 return \Carbon\Carbon::parse($rdv->debut)
                     ->diffInMinutes(\Carbon\Carbon::parse($rdv->fin));
             }
-
             return 30;
         };
+        $paiementsJour = \App\Models\Paiement::query()
+            ->valides()
+            ->where('enregistre_par', $user->id)
+            ->whereBetween('paye_le', [$debutJour, $finJour])
+            ->get();
 
-        $queryPaiements = \App\Models\Paiement::whereBetween('created_at', [$debutJour, $finJour]);
-
-        if (\Illuminate\Support\Facades\Schema::hasColumn('paiements', 'user_id')) {
-            $queryPaiements->where('user_id', $user->id);
-        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('paiements', 'employe_id')) {
-            $queryPaiements->where('employe_id', $user->id);
-        }
-
-        $paiementsJour = $queryPaiements->get();
-
-        $mesEncaissements = $paiementsJour->sum('montant');
+        $mesEncaissements = $paiementsJour->sum('montant_paye');
         $mesPaiements = $paiementsJour->count();
-
         $f = fn($val) => number_format($val, 0, ',', ' ');
 
         return view('receptionniste.dashboard', compact(
@@ -229,7 +222,7 @@ Route::middleware('auth')->group(function () {
         ->name('professionnel.rendez-vous.statut');
 
     // Gestion des clients
-    Route::middleware('role:admin,receptionniste')->group(function () {
+    Route::middleware(['role:admin,receptionniste', 'permission:clients.gerer'])->group(function () {
 
         Route::get('clients/export', [ClientController::class, 'export'])
             ->name('clients.export');
@@ -270,13 +263,10 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/', [CampagneController::class, 'index'])->name('index');
             Route::post('/', [CampagneController::class, 'store'])->name('store');
-
             Route::post('/destinataires/{destinataire}/ouvrir', [CampagneController::class, 'ouvrir'])
                 ->name('destinataires.ouvrir');
-
             Route::patch('/destinataires/{destinataire}/suivi', [CampagneController::class, 'suivi'])
                 ->name('destinataires.suivi');
-
             Route::get('/{campagne}', [CampagneController::class, 'show'])->name('show');
         });
 
@@ -289,10 +279,8 @@ Route::middleware('auth')->group(function () {
 
     // Paramètres des modèles WhatsApp
     Route::middleware('admin')->group(function () {
-
         Route::get('parametres/messages', [ModeleMessageController::class, 'index'])
             ->name('parametres.messages');
-
         Route::put('parametres/messages/{modele}', [ModeleMessageController::class, 'update'])
             ->name('parametres.messages.update');
     });
@@ -302,18 +290,15 @@ Route::middleware('auth')->group(function () {
         ->prefix('prestations')
         ->name('prestations.')
         ->group(function () {
-
             Route::get('/', [PrestationController::class, 'index'])->name('index');
             Route::post('/', [PrestationController::class, 'storePrestation'])->name('store');
             Route::put('/{id}', [PrestationController::class, 'updatePrestation'])->name('update');
             Route::patch('/{id}/statut', [PrestationController::class, 'changerStatutPrestation'])->name('statut');
             Route::delete('/{id}', [PrestationController::class, 'destroyPrestation'])->name('destroy');
-
             Route::post('/forfaits', [PrestationController::class, 'storeForfait'])->name('forfaits.store');
             Route::put('/forfaits/{id}', [PrestationController::class, 'updateForfait'])->name('forfaits.update');
             Route::patch('/forfaits/{id}/statut', [PrestationController::class, 'changerStatutForfait'])->name('forfaits.statut');
             Route::delete('/forfaits/{id}', [PrestationController::class, 'destroyForfait'])->name('forfaits.destroy');
-
             Route::post('/categories', [PrestationController::class, 'store'])->name('categories.store');
             Route::put('/categories/{id}', [PrestationController::class, 'update'])->name('categories.update');
             Route::delete('/categories/{id}', [PrestationController::class, 'destroy'])->name('categories.destroy');
@@ -326,18 +311,12 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
 
             Route::middleware('permission:paiements.enregistrer')->group(function () {
-
                 Route::get('/', [CaisseController::class, 'index'])->name('index');
-
                 Route::get('/impayes', [CaisseController::class, 'impayes'])->name('impayes');
-
                 Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])->name('recu');
-
                 Route::get('/encaisser', [CaisseController::class, 'create'])->name('create');
-
                 Route::post('/', [CaisseController::class, 'store'])->name('store');
             });
-
             Route::patch('/{paiement}/annuler', [CaisseController::class, 'annuler'])
                 ->middleware('permission:paiements.annuler')
                 ->name('annuler');
@@ -348,7 +327,6 @@ Route::middleware('auth')->group(function () {
         ->prefix('caisse/modes')
         ->name('caisse.modes.')
         ->group(function () {
-
             Route::get('/', [CaisseController::class, 'modes'])->name('index');
             Route::post('/', [CaisseController::class, 'storeMode'])->name('store');
             Route::patch('/{mode}', [CaisseController::class, 'toggleMode'])->name('toggle');
@@ -359,12 +337,10 @@ Route::middleware('auth')->group(function () {
         ->prefix('depenses')
         ->name('depenses.')
         ->group(function () {
-
             Route::get('/', [DepenseController::class, 'index'])->name('index');
             Route::get('/creer', [DepenseController::class, 'create'])->name('create');
             Route::post('/', [DepenseController::class, 'store'])->name('store');
             Route::patch('/{depense}/annuler', [DepenseController::class, 'annuler'])->name('annuler');
-
             Route::get('/{depense}/annuler', fn() => redirect()->route('depenses.index'));
         });
 
@@ -373,7 +349,6 @@ Route::middleware('auth')->group(function () {
         ->prefix('rapports')
         ->name('rapports.')
         ->group(function () {
-
             Route::get('/', [RapportController::class, 'index'])->name('index');
             Route::get('/imprimer', [RapportController::class, 'imprimer'])->name('imprimer');
             Route::get('/export', [RapportController::class, 'exporter'])->name('export');
@@ -386,34 +361,25 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
 
             Route::get('/', [ProduitController::class, 'index'])->name('index');
-
             Route::get('/mouvements', [MouvementStockController::class, 'index'])
                 ->name('mouvements.index');
-
             Route::get('/creer', [ProduitController::class, 'create'])
                 ->name('produits.create');
-
             Route::post('/', [ProduitController::class, 'store'])
                 ->name('produits.store');
-
             Route::get('/{produit}/modifier', [ProduitController::class, 'edit'])
                 ->name('produits.edit');
-
             Route::put('/{produit}', [ProduitController::class, 'update'])
                 ->name('produits.update');
-
             Route::get('/{produit}/entree', [MouvementStockController::class, 'create'])
                 ->defaults('type', 'entree')
                 ->name('entree.create');
-
             Route::post('/{produit}/entree', [MouvementStockController::class, 'store'])
                 ->defaults('type', 'entree')
                 ->name('entree.store');
-
             Route::get('/{produit}/sortie', [MouvementStockController::class, 'create'])
                 ->defaults('type', 'sortie')
                 ->name('sortie.create');
-
             Route::post('/{produit}/sortie', [MouvementStockController::class, 'store'])
                 ->defaults('type', 'sortie')
                 ->name('sortie.store');
@@ -437,16 +403,12 @@ Route::middleware([
 
         Route::get('/', [CalendrierController::class, 'index'])
             ->name('index');
-
         Route::get('/creer', [RendezVousController::class, 'create'])
             ->name('create');
-
         Route::post('/', [RendezVousController::class, 'store'])
             ->name('store');
-
         Route::patch('/{rendezVous}/statut', [RendezVousController::class, 'changerStatut'])
             ->name('statut');
-
         Route::patch('/{rendezVous}/deplacer', [RendezVousController::class, 'deplacer'])
             ->name('deplacer');
     });
