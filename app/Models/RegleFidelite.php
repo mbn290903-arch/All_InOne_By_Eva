@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -40,17 +39,18 @@ class RegleFidelite extends Model
         return $query->where('is_active', true);
     }
 
-    public function scopeEnVigueur($query)
+    public function scopeEnVigueur($query, $date = null)
     {
         $date = $date
             ? \Illuminate\Support\Carbon::parse($date)->toDateString()
             : now()->toDateString();
+
         return $query
             ->where('is_active', true)
-            ->whereDate('date_debut', '<=', now()->toDateString())
-            ->where(function ($q) {
+            ->whereDate('date_debut', '<=', $date)
+            ->where(function ($q) use ($date) {
                 $q->whereNull('date_fin')
-                    ->orWhereDate('date_fin', '>=', now()->toDateString());
+                    ->orWhereDate('date_fin', '>=', $date);
             });
     }
 }
