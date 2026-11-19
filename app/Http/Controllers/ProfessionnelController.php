@@ -1,6 +1,10 @@
 <?php
+
 namespace App\Http\Controllers;
 
+use App\Enums\StatutRendezVous;
+use App\Exceptions\RegleMetierException;
+use App\Services\RendezVousService;
 use App\Models\RendezVous;
 use App\Services\StockService;
 use Carbon\Carbon;
@@ -49,7 +53,7 @@ class ProfessionnelController extends Controller
         return DB::table('rendez_vous as r')
             ->join('clients as c', 'c.id', '=', 'r.client_id')
             ->where('r.employe_id', $employeId)
-            ->where('r.statut', '!=', 'annule')
+            ->whereNotIn('r.statut', ['annule', 'absent'])
             ->select(
                 'r.id',
                 'r.debut',
@@ -143,35 +147,32 @@ class ProfessionnelController extends Controller
         return view('professionnel.show', compact('rdv'));
     }
 
-    public function statut(Request $request, RendezVous $rendezVous)
+    public function statut(Request $request, RendezVous $rendezVous, RendezVousService $service)
     {
         $this->verifierProprietaire($rendezVous);
 
-        $nouveau = $request->validate(['statut' => ['required', 'in:en_cours,termine']])['statut'];
-        $ancien = $rendezVous->getRawOriginal('statut');
+        $nouveau = StatutRendezVous::from(
+            $request->validate(['statut' => ['required', 'in:en_cours,termine']])['statut']
+        );
+        $ancien = $rendezVous->statut;
 
-        if (! in_array($nouveau, self::TRANSITIONS[$ancien] ?? [], true)) {
-            return back()->withErrors(['statut' => 'Ce changement de statut n’est pas possible depuis « ' . (self::STATUTS[$ancien]['label'] ?? $ancien) . ' ».']);
+        if (! in_array($nouveau->value, self::TRANSITIONS[$ancien->value] ?? [], true)) {
+            return back()->withErrors(['statut' => 'Ce changement de statut n’est pas possible depuis « ' . $ancien->label() . ' ».']);
         }
 
-        DB::transaction(function () use ($rendezVous, $ancien, $nouveau, $request) {
-            DB::table('rendez_vous')->where('id', $rendezVous->id)
-                ->update(['statut' => $nouveau, 'updated_at' => now()]);
+        // Règle du jour (optionnelle : supprime ce bloc si tu n'en veux pas).
+        if (! $rendezVous->debut->isToday() && $ancien !== StatutRendezVous::EnCours) {
+            return back()->withErrors(['statut' => 'Vous ne pouvez changer que le statut des rendez-vous du jour.']);
+        }
 
-            DB::table('historique_actions')->insert([
-                'user_id'           => auth()->id(),
-                'action'            => 'rendez_vous.statut',
-                'auditable_type'    => RendezVous::class,
-                'auditable_id'      => $rendezVous->id,
-                'anciennes_valeurs' => json_encode(['statut' => $ancien]),
-                'nouvelles_valeurs' => json_encode(['statut' => $nouveau]),
-                'ip'                => $request->ip(),
-                'created_at'        => now(),
-            ]);
-        });
+        try {
+            $service->changerStatut($rendezVous, $nouveau);
+        } catch (RegleMetierException $e) {
+            return back()->withErrors(['statut' => $e->getMessage()]);
+        }
 
-        // Déduction du stock (sans effet si l'option est désactivée). Ne bloque jamais le changement de statut.
-        if ($nouveau === 'termine') {
+        // Déduction du stock : ne bloque jamais le changement de statut.
+        if ($nouveau === StatutRendezVous::Termine) {
             try {
                 app(StockService::class)->consommerPourRendezVous($rendezVous->id, auth()->user());
             } catch (\Throwable $e) {
@@ -179,6 +180,6 @@ class ProfessionnelController extends Controller
             }
         }
 
-        return back()->with('success', $nouveau === 'en_cours' ? 'Prestation démarrée.' : 'Prestation terminée.');
+        return back()->with('success', $nouveau === StatutRendezVous::EnCours ? 'Prestation démarrée.' : 'Prestation terminée.');
     }
 }

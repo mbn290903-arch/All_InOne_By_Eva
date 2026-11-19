@@ -2,7 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Employe;
+use App\Models\Employeuse;
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;;
+
 use App\Models\Service;
 use App\Models\Disponibilite;
 use Carbon\Carbon;
@@ -25,7 +30,7 @@ class EmployeController extends Controller
 
         if ($voirPerformances) {
             $perfs = $employes->mapWithKeys(
-                fn (Employe $e) => [$e->id => $e->performances($du, $au)]
+                fn(Employe $e) => [$e->id => $e->performances($du, $au)]
             );
         }
 
@@ -46,9 +51,14 @@ class EmployeController extends Controller
     {
         $this->authorize('create', Employe::class);
 
-        $employe = Employe::create($this->valider($request));
-        $employe->services()->sync($request->input('services', []));
-        $this->enregistrerHoraires($employe, $request);
+        $employe = DB::transaction(function () use ($request) {
+            $employe = Employe::create($this->valider($request));
+            $employe->services()->sync($request->input('services', []));
+            $this->enregistrerHoraires($employe, $request);
+            $this->creerCompte($employe, $request);
+
+            return $employe;
+        });
 
         return redirect()->route('employes.show', $employe)->with('success', 'Employé créé.');
     }
@@ -83,8 +93,20 @@ class EmployeController extends Controller
     {
         $this->authorize('update', Employe::class);
 
-        $employe->update($this->valider($request));
-        $employe->services()->sync($request->input('services', []));
+        DB::transaction(function () use ($request, $employe) {
+            $employe->update($this->valider($request));
+            $employe->services()->sync($request->input('services', []));
+
+            // Les horaires ne sont remplacés que si le formulaire les envoie.
+            if ($request->has('horaires')) {
+                $this->enregistrerHoraires($employe, $request);
+            }
+
+            // Permet de relier un compte à une fiche créée sans compte.
+            if (! $employe->user_id) {
+                $this->creerCompte($employe, $request);
+            }
+        });
 
         return redirect()->route('employes.show', $employe)->with('success', 'Fiche mise à jour.');
     }
@@ -94,7 +116,9 @@ class EmployeController extends Controller
         $data = $request->validate([
             'prenom'          => ['required', 'string', 'max:100'],
             'nom'             => ['required', 'string', 'max:100'],
-            'telephone'       => ['nullable', 'string', 'max:30'],
+            'telephone'        => ['required', 'string', 'max:20'],
+            'compte_email'     => ['nullable', 'email', 'max:255', 'unique:users,email', 'required_with:compte_password'],
+            'compte_password'  => ['nullable', 'string', 'min:10', 'required_with:compte_email'],
             'fonction'        => ['required', 'string', 'max:100'],
             'specialites'     => ['nullable', 'string', 'max:500'],
             'taux_commission' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -102,8 +126,8 @@ class EmployeController extends Controller
             'services.*'      => ['integer', 'exists:services,id'],
 
             'horaires'           => ['nullable', 'array'],
-'horaires.*.debut'   => ['nullable', 'date_format:H:i'],
-'horaires.*.fin'     => ['nullable', 'date_format:H:i', 'after:horaires.*.debut'],
+            'horaires.*.debut'   => ['nullable', 'date_format:H:i'],
+            'horaires.*.fin'     => ['nullable', 'date_format:H:i', 'after:horaires.*.debut'],
         ]);
 
         // Seul l'admin peut fixer la rémunération.
@@ -116,30 +140,48 @@ class EmployeController extends Controller
         $data['is_active'] = $request->boolean('is_active');
         unset($data['services']);
         unset($data['horaires']);
+        unset($data['compte_email'], $data['compte_password']);
         return $data;
     }
-/** Remplace les horaires de l'employé par ceux du formulaire. */
-private function enregistrerHoraires(Employe $employe, Request $request): void
-{
-    $employe->disponibilites()->delete();
+    /** Remplace les horaires de l'employé par ceux du formulaire. */
+    private function enregistrerHoraires(Employe $employe, Request $request): void
+    {
+        $employe->disponibilites()->delete();
 
-    foreach (array_keys(Disponibilite::JOURS) as $jour) {
-        if (! $request->boolean("horaires.$jour.actif")) {
-            continue;
-        }
+        foreach (array_keys(Disponibilite::JOURS) as $jour) {
+            if (! $request->boolean("horaires.$jour.actif")) {
+                continue;
+            }
 
-        $debut = $request->input("horaires.$jour.debut");
-        $fin   = $request->input("horaires.$jour.fin");
+            $debut = $request->input("horaires.$jour.debut");
+            $fin   = $request->input("horaires.$jour.fin");
 
-        if ($debut && $fin) {
-            $employe->disponibilites()->create([
-                'jour_semaine' => $jour,
-                'heure_debut'  => $debut,
-                'heure_fin'    => $fin,
-            ]);
+            if ($debut && $fin) {
+                $employe->disponibilites()->create([
+                    'jour_semaine' => $jour,
+                    'heure_debut'  => $debut,
+                    'heure_fin'    => $fin,
+                ]);
+            }
         }
     }
-}
+    /** Crée le compte de connexion « professionnel » et le relie à la fiche. */
+    private function creerCompte(Employe $employe, Request $request): void
+    {
+        if (! $request->filled('compte_email')) {
+            return;
+        }
+
+        $user = User::create([
+            'name'      => $employe->prenom . ' ' . $employe->nom,
+            'email'     => $request->input('compte_email'),
+            'password'  => Hash::make($request->input('compte_password')),
+            'role_id'   => Role::query()->where('name', 'professionnel')->value('id'),
+            'is_active' => true,
+        ]);
+
+        $employe->update(['user_id' => $user->id]);
+    }
     private function periode(Request $request): array
     {
         $du = Carbon::parse($request->input('du', now()->startOfMonth()))->startOfDay();
