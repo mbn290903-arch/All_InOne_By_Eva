@@ -1,14 +1,14 @@
 FROM node:22-alpine AS assets
 WORKDIR /app
-COPY package*.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
 FROM php:8.4-apache
-RUN apt-get update && apt-get install -y git unzip libzip-dev libpng-dev libjpeg-dev libfreetype6-dev libicu-dev \
+RUN apt-get update && apt-get install -y git unzip libzip-dev libpng-dev libjpeg-dev libfreetype6-dev libicu-dev libpq-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql zip gd intl bcmath \
+    && docker-php-ext-install pdo_mysql pdo_pgsql zip gd intl bcmath \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
