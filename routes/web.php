@@ -135,7 +135,21 @@ Route::middleware('auth')->group(function () {
             ->get();
 
         $rappelsDemain = $rdvDemain->map(function ($rdv) {
-            return ['rdv' => $rdv];
+            $tel = preg_replace('/\D+/', '', $rdv->client->telephone ?? '');
+
+            if ($tel !== '' && strlen($tel) === 9) {
+                $tel = '221' . $tel;
+            }
+
+            $message = rawurlencode(
+                "Bonjour {$rdv->client->nom}, nous vous rappelons votre rendez-vous demain à "
+                . \Carbon\Carbon::parse($rdv->debut)->format('H\hi') . '.'
+            );
+
+            return [
+                'rdv'  => $rdv,
+                'lien' => $tel !== '' ? "https://wa.me/{$tel}?text={$message}" : null,
+            ];
         });
 
         $anniversaires = collect();
