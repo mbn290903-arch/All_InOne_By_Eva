@@ -12,6 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo('/connexion');
+                $middleware->trustProxies(at: '*');
                $middleware->redirectUsersTo(fn () => match (auth()->user()->role->name) {
             'receptionniste' => route('receptionniste.dashboard'),
             'professionnel'  => route('professionnel.dashboard'),
