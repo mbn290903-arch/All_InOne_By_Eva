@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -40,6 +42,9 @@ class RegleFidelite extends Model
 
     public function scopeEnVigueur($query)
     {
+        $date = $date
+            ? \Illuminate\Support\Carbon::parse($date)->toDateString()
+            : now()->toDateString();
         return $query
             ->where('is_active', true)
             ->whereDate('date_debut', '<=', now()->toDateString())

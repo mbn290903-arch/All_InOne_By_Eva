@@ -1,4 +1,5 @@
 <?php
+
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\CatalogueController;
 use App\Http\Controllers\RapportController;
@@ -135,7 +136,10 @@ Route::middleware('auth')->group(function () {
             ->get();
 
         $rappelsDemain = $rdvDemain->map(function ($rdv) {
-            return ['rdv' => $rdv];
+            return [
+                'rdv' => $rdv,
+                'lien' => null,
+            ];
         });
 
         $anniversaires = collect();
@@ -201,7 +205,6 @@ Route::middleware('auth')->group(function () {
             'mesPaiements',
             'f'
         ));
-
     })->middleware('role:admin,receptionniste')
         ->name('receptionniste.dashboard');
 
@@ -241,8 +244,9 @@ Route::middleware('auth')->group(function () {
             ->name('clients.restore');
     });
 
-    // Anniversaires
-    Route::middleware('role:admin,receptionniste')->group(function () {
+
+    // Anniversaires : administratrice uniquement
+    Route::middleware('admin')->group(function () {
 
         Route::get('anniversaires', [AnniversaireController::class, 'index'])
             ->name('anniversaires.index');
@@ -256,6 +260,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('anniversaires/{client}/traite', [AnniversaireController::class, 'annuler'])
             ->name('anniversaires.annuler');
     });
+
 
     // Campagnes WhatsApp
     Route::middleware('admin')
@@ -320,12 +325,16 @@ Route::middleware('auth')->group(function () {
         ->name('caisse.')
         ->group(function () {
 
-            Route::get('/', [CaisseController::class, 'index'])->name('index');
-            Route::get('/impayes', [CaisseController::class, 'impayes'])->name('impayes');
-            Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])->name('recu');
-
             Route::middleware('permission:paiements.enregistrer')->group(function () {
+
+                Route::get('/', [CaisseController::class, 'index'])->name('index');
+
+                Route::get('/impayes', [CaisseController::class, 'impayes'])->name('impayes');
+
+                Route::get('/{paiement}/recu', [CaisseController::class, 'recu'])->name('recu');
+
                 Route::get('/encaisser', [CaisseController::class, 'create'])->name('create');
+
                 Route::post('/', [CaisseController::class, 'store'])->name('store');
             });
 
@@ -415,8 +424,13 @@ Route::middleware('auth')->group(function () {
         ->name('logout');
 });
 
+
 // Gestion des rendez-vous
-Route::middleware(['auth', 'role:admin,receptionniste'])
+Route::middleware([
+    'auth',
+    'role:admin,receptionniste',
+    'permission:rdv.gerer',
+])
     ->prefix('rendez-vous')
     ->name('rendez-vous.')
     ->group(function () {

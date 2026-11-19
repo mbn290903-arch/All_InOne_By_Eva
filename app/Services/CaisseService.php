@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Services;
+
 use App\Models\Paiement;
 use App\Models\RendezVous;
 use App\Models\User;
@@ -8,26 +10,42 @@ use Illuminate\Validation\ValidationException;
 
 class CaisseService
 {
+    public function __construct(
+        private readonly FideliteService $fidelite
+    ) {}
+
+    /**
+     * Enregistre un paiement.
+     */
     public function encaisser(array $data, User $user): Paiement
     {
         return DB::transaction(function () use ($data, $user) {
+
             $montant = (int) $data['montant_paye'];
+            if ($montant <= 0) {
+                throw ValidationException::withMessages([
+                    'montant_paye' => 'Le montant doit être supérieur à zéro.',
+                ]);
+            }
             $montantTotal = $montant;
             $reste = 0;
+            $rdv = null;
 
-            if (! empty($data['rendez_vous_id'])) {
-                // On verrouille le rendez-vous pour éviter deux encaissements simultanés
-                $rdv = RendezVous::lockForUpdate()->findOrFail($data['rendez_vous_id']);
+            if (!empty($data['rendez_vous_id'])) {
 
-                if ($rdv->client_id !== (int) $data['client_id']) {
+                // Verrouillage du rendez-vous contre les encaissements simultanés.
+                $rdv = RendezVous::lockForUpdate()
+                    ->findOrFail($data['rendez_vous_id']);
+
+                if ((int) $rdv->client_id !== (int) $data['client_id']) {
                     throw ValidationException::withMessages([
                         'client_id' => "Ce rendez-vous n'appartient pas à ce client.",
                     ]);
                 }
 
-                $resteActuel = $rdv->resteAPayer();
+                $resteActuel = (int) $rdv->resteAPayer();
 
-                if ($resteActuel === 0) {
+                if ($resteActuel <= 0) {
                     throw ValidationException::withMessages([
                         'montant_paye' => 'Ce rendez-vous est déjà soldé.',
                     ]);
@@ -39,7 +57,7 @@ class CaisseService
                     ]);
                 }
 
-                $montantTotal = $rdv->prix_prevu;
+                $montantTotal = (int) $rdv->prix_prevu;
                 $reste = $resteActuel - $montant;
             }
 
@@ -55,16 +73,39 @@ class CaisseService
                 'enregistre_par' => $user->id,
             ]);
 
-            $this->journaliser($user, 'paiement.cree', $paiement, null, $paiement->toArray());
+            $this->journaliser(
+                $user,
+                'paiement.cree',
+                $paiement,
+                null,
+                $paiement->toArray()
+            );
+
+            // Si le rendez-vous est terminé et maintenant intégralement payé,
+            // les points sont crédités. Sinon, aucun point n'est attribué.
+            if ($rdv) {
+                $this->fidelite->crediterSiEligible(
+                    $rdv->fresh()
+                );
+            }
 
             return $paiement;
         });
     }
 
-    public function annuler(Paiement $paiement, string $motif, User $user): Paiement
-    {
+    /**
+     * Annule un paiement.
+     */
+    public function annuler(
+        Paiement $paiement,
+        string $motif,
+        User $user
+    ): Paiement {
+
         return DB::transaction(function () use ($paiement, $motif, $user) {
-            $paiement = Paiement::lockForUpdate()->findOrFail($paiement->id);
+
+            $paiement = Paiement::lockForUpdate()
+                ->findOrFail($paiement->id);
 
             if ($paiement->estAnnule()) {
                 throw ValidationException::withMessages([
@@ -80,21 +121,47 @@ class CaisseService
                 'motif_annulation' => $motif,
             ]);
 
-            $this->journaliser($user, 'paiement.annule', $paiement, $avant, $paiement->fresh()->toArray());
+            $this->journaliser(
+                $user,
+                'paiement.annule',
+                $paiement,
+                $avant,
+                $paiement->fresh()->toArray()
+            );
+
+            // Annule les gains du rendez-vous puis les recalcule
+            // uniquement si le rendez-vous reste terminé et intégralement payé.
+            $this->fidelite->annulerGainDuPaiement(
+                $paiement->id,
+                $user
+            );
 
             return $paiement;
         });
     }
 
-    private function journaliser(User $user, string $action, Paiement $paiement, ?array $avant, ?array $apres): void
-    {
+    /**
+     * Enregistre une action dans l'historique.
+     */
+    private function journaliser(
+        User $user,
+        string $action,
+        Paiement $paiement,
+        ?array $avant,
+        ?array $apres
+    ): void {
+
         DB::table('historique_actions')->insert([
             'user_id' => $user->id,
             'action' => $action,
             'auditable_type' => Paiement::class,
             'auditable_id' => $paiement->id,
-            'anciennes_valeurs' => $avant ? json_encode($avant) : null,
-            'nouvelles_valeurs' => $apres ? json_encode($apres) : null,
+            'anciennes_valeurs' => $avant
+                ? json_encode($avant)
+                : null,
+            'nouvelles_valeurs' => $apres
+                ? json_encode($apres)
+                : null,
             'ip' => request()->ip(),
             'created_at' => now(),
         ]);

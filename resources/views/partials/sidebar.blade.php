@@ -16,12 +16,18 @@
     <nav class="flex-1 overflow-y-auto px-3 pb-4 pt-2">
 
         @php
-            $role = auth()->user()->role->name;
+            $user = auth()->user();
+            $role = $user->role->name;
 
-            $estAdmin = $role === 'admin';
+            $estAdmin = $user->isAdmin();
             $estReception = $role === 'receptionniste';
             $estPro = $role === 'professionnel';
             $adminOuReception = $estAdmin || $estReception;
+
+            $peutGererClients = $estAdmin || $user->hasPermission('clients.gerer');
+            $peutGererRdv = $estAdmin || $user->hasPermission('rdv.gerer');
+            $peutEncaisser = $estAdmin || $user->hasPermission('paiements.enregistrer');
+            $peutWhatsApp = $estAdmin || $user->hasPermission('whatsapp.envoyer');
 
             $routeDashboard =
                 [
@@ -56,25 +62,41 @@
         {{-- ACTIVITÉ --}}
         <div class="nav-label">ACTIVITÉ</div>
 
-        <a href="{{ $estPro ? route('professionnel.planning') : route('rendez-vous.index') }}"
-            class="nav-link {{ request()->routeIs('rendez-vous.*', 'professionnel.planning', 'professionnel.rendez-vous.*') ? 'active' : '' }}">
-            <i data-lucide="calendar"></i>
-            {{ $estPro ? 'Mon planning' : 'Rendez-vous' }}
-        </a>
-        @if ($adminOuReception)
+        {{-- Rendez-vous / planning --}}
+        @if ($estPro)
+            <a href="{{ route('professionnel.planning') }}"
+                class="nav-link {{ request()->routeIs('professionnel.planning', 'professionnel.rendez-vous.*') ? 'active' : '' }}">
+                <i data-lucide="calendar"></i>
+                Mon planning
+            </a>
+        @elseif ($peutGererRdv)
+            <a href="{{ route('rendez-vous.index') }}"
+                class="nav-link {{ request()->routeIs('rendez-vous.*') ? 'active' : '' }}">
+                <i data-lucide="calendar"></i>
+                Rendez-vous
+            </a>
+        @endif
+
+        {{-- Clients --}}
+        @if ($peutGererClients)
             <a href="{{ route('clients.index') }}"
                 class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}">
                 <i data-lucide="users"></i>
                 Clients
             </a>
+        @endif
 
-
+        {{-- Catalogue en consultation --}}
+        @if ($adminOuReception)
             <a href="{{ $estAdmin ? route('prestations.index') : route('catalogue.index') }}"
                 class="nav-link {{ request()->routeIs('prestations.*', 'catalogue.*') ? 'active' : '' }}">
                 <i data-lucide="sparkles"></i>
                 Prestations
             </a>
+        @endif
 
+        {{-- Caisse --}}
+        @if ($peutEncaisser)
             <a href="{{ route('caisse.index') }}"
                 class="nav-link {{ request()->routeIs('caisse.*') ? 'active' : '' }}">
                 <i data-lucide="wallet"></i>
@@ -83,9 +105,8 @@
         @endif
 
         {{-- RELATION CLIENT --}}
-        @if ($adminOuReception)
-            <div class="nav-label">RELATION CLIENT</div>
-
+        @if ($estAdmin || $peutWhatsApp)
+            {{-- Campagnes : administratrice uniquement --}}
             @if ($estAdmin)
                 <a href="{{ route('campagnes.index') }}"
                     class="nav-link {{ request()->routeIs('campagnes.*') ? 'active' : '' }}">
@@ -94,12 +115,16 @@
                 </a>
             @endif
 
-            <a href="{{ route('anniversaires.index') }}"
-                class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
-                <i data-lucide="cake"></i>
-                Anniversaires
-            </a>
+            {{-- Anniversaires : administratrice uniquement --}}
+            @if ($estAdmin)
+                <a href="{{ route('anniversaires.index') }}"
+                    class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
+                    <i data-lucide="cake"></i>
+                    Anniversaires
+                </a>
+            @endif
 
+            {{-- Fidélité --}}
             @if ($estAdmin)
                 <a href="{{ route('fidelite.index') }}"
                     class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
@@ -108,7 +133,6 @@
                 </a>
             @endif
         @endif
-
 
         {{-- GESTION --}}
         @if ($estAdmin)
@@ -154,7 +178,6 @@
 
         @endif
 
-
         {{-- ADMINISTRATION --}}
         @if ($estAdmin)
             <div class="nav-label">ADMINISTRATION</div>
@@ -174,16 +197,16 @@
         <div class="mb-4 flex items-center gap-2">
             <div
                 class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#f0dfe4] text-[10px] font-semibold text-wine">
-                {{ strtoupper(substr(Auth::user()->name, 0, 2)) }}
+                {{ strtoupper(substr($user->name, 0, 2)) }}
             </div>
 
             <div class="min-w-0 flex-1">
                 <div class="truncate text-[11px] font-semibold">
-                    {{ Auth::user()->name }}
+                    {{ $user->name }}
                 </div>
 
                 <div class="text-[9px] text-muted">
-                    {{ Auth::user()->role->name }}
+                    {{ $role }}
                 </div>
             </div>
         </div>

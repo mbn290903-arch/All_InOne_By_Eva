@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services;
 
 use App\Enums\StatutRendezVous;
@@ -175,13 +176,17 @@ class RendezVousService
         CarbonImmutable $nouveauDebut
     ): RendezVous {
 
-        if (! $rendezVous->statut->peutEtreDeplace()) {
-            throw new RegleMetierException(
-                'Ce rendez-vous ne peut plus être déplacé.'
-            );
-        }
-
         return DB::transaction(function () use ($rendezVous, $nouveauDebut) {
+
+            $rendezVous = RendezVous::query()
+                ->lockForUpdate()
+                ->findOrFail($rendezVous->id);
+
+            if (! $rendezVous->statut->peutEtreDeplace()) {
+                throw new RegleMetierException(
+                    'Ce rendez-vous ne peut plus être déplacé.'
+                );
+            }
 
             $employe = Employe::query()
                 ->lockForUpdate()
@@ -190,8 +195,6 @@ class RendezVousService
             $duree = (int) $rendezVous->debut->diffInMinutes($rendezVous->fin);
             $nouvelleFin = $nouveauDebut->addMinutes($duree);
 
-            // Vérifie horaires, disponibilités et chevauchements
-            // (en ignorant ce rendez-vous lui-même).
             $this->disponibilites->verifier(
                 $employe,
                 $nouveauDebut,

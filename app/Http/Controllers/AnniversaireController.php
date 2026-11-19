@@ -37,8 +37,12 @@ class AnniversaireController extends Controller
                 $parMd['02-29'] = $date;
             }
         };
-        for ($i = 0; $i < $aujourdhui->daysInMonth; $i++) { $ajouter($moisDebut->copy()->addDays($i)); }
-        for ($i = 0; $i <= 6; $i++)                       { $ajouter($aujourdhui->copy()->addDays($i)); }
+        for ($i = 0; $i < $aujourdhui->daysInMonth; $i++) {
+            $ajouter($moisDebut->copy()->addDays($i));
+        }
+        for ($i = 0; $i <= 6; $i++) {
+            $ajouter($aujourdhui->copy()->addDays($i));
+        }
 
         $mdListe = array_keys($parMd);
         $expr    = DB::getDriverName() === 'sqlite'
@@ -73,7 +77,9 @@ class AnniversaireController extends Controller
                 'jours'      => (int) $aujourdhui->diffInDays($date, false),
                 'traite'     => isset($traites[$c->id . '-' . $date->year]),
                 'avec_offre' => $avecOffre,
-                'wa_url'     => WhatsAppService::lien($c->whatsapp ?: $c->telephone, $message),
+                'wa_url' => $c->canal_prefere === 'whatsapp'
+                    ? WhatsAppService::lien($c->whatsapp ?: $c->telephone, $message)
+                    : null,
             ];
         });
 
@@ -193,8 +199,7 @@ class AnniversaireController extends Controller
 
     private function autoriser(): void
     {
-        $u = auth()->user();
-        abort_unless($u->isAdmin() || $u->hasPermission('whatsapp.envoyer'), 403);
+        abort_unless(auth()->user()?->isAdmin(), 403);
     }
 
     private function anneeValide(Request $request): int

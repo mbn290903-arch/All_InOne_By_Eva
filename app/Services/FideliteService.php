@@ -71,6 +71,7 @@ class FideliteService
             foreach ($gainsExistants as $gain) {
                 $dejaAnnule = MouvementPoints::query()
                     ->where('mouvement_origine_id', $gain->id)
+                    ->where('type', TypeMouvementPoints::Correction)
                     ->exists();
 
                 if (! $dejaAnnule) {
@@ -94,7 +95,7 @@ class FideliteService
                 ->first();
 
             $tranche = $regle
-                ? (int) $regle->montant_par_tranche
+                ? max(1, (int) $regle->montant_par_tranche)
                 : max(1, (int) ParametreSalon::get('fidelite_fcfa_par_point', 1000));
 
             $pointsParTranche = $regle
@@ -136,6 +137,9 @@ class FideliteService
             if (! $paiement || ! $paiement->rendez_vous_id) {
                 return;
             }
+            if (! $paiement->estAnnule()) {
+                return;
+            }
 
             $rendezVous = RendezVous::query()
                 ->lockForUpdate()
@@ -159,6 +163,7 @@ class FideliteService
             foreach ($gains as $gain) {
                 $annulationExistante = MouvementPoints::query()
                     ->where('mouvement_origine_id', $gain->id)
+                    ->where('type', TypeMouvementPoints::Correction)
                     ->exists();
 
                 if ($annulationExistante) {
@@ -189,11 +194,8 @@ class FideliteService
             $this->crediterSiEligible($rendezVous);
         });
     }
-
-
-
     /**
-     * Utilise une récompense.
+     * Utilise une récompense en débitant les points du client.
      */
     public function utiliserRecompense(
         Client $client,
@@ -201,9 +203,14 @@ class FideliteService
         User $auteur
     ): UtilisationRecompense {
         return DB::transaction(function () use ($client, $recompense, $auteur) {
+
             $client = Client::query()
                 ->lockForUpdate()
                 ->findOrFail($client->id);
+
+            $recompense = Recompense::query()
+                ->lockForUpdate()
+                ->findOrFail($recompense->id);
 
             if (! $recompense->is_active) {
                 throw new RegleMetierException(
@@ -211,20 +218,30 @@ class FideliteService
                 );
             }
 
-            if ($client->soldePoints() < $recompense->seuil_points) {
+            if ($recompense->seuil_points <= 0) {
+                throw new RegleMetierException(
+                    'Le coût en points de cette récompense est invalide.'
+                );
+            }
+
+            $cout = (int) $recompense->seuil_points;
+
+            if ($client->soldePoints() < $cout) {
                 throw new RegleMetierException(
                     'Solde de points insuffisant pour cette récompense.'
                 );
             }
 
+            // Débiter les points du client.
             $mouvement = MouvementPoints::create([
                 'client_id' => $client->id,
                 'type' => TypeMouvementPoints::Utilisation,
-                'points' => -$recompense->seuil_points,
-                'motif' => "Récompense : {$recompense->libelle}",
+                'points' => -$cout,
+                'motif' => "Utilisation de la récompense : {$recompense->libelle}",
                 'enregistre_par' => $auteur->id,
             ]);
 
+            // Enregistrer l'utilisation de la récompense.
             $utilisation = UtilisationRecompense::create([
                 'client_id' => $client->id,
                 'recompense_id' => $recompense->id,
@@ -234,61 +251,17 @@ class FideliteService
             ]);
 
             $this->audit->log(
-                'fidelite.recompense',
-                $client,
-                nouvelles: ['recompense' => $recompense->libelle]
-            );
-
-            return $utilisation;
-        });
-    }
-
-    /**
-     * Effectue une correction manuelle du solde.
-     */
-    public function corriger(
-        Client $client,
-        int $points,
-        string $motif,
-        User $auteur
-    ): MouvementPoints {
-        return DB::transaction(function () use ($client, $points, $motif, $auteur) {
-            $client = Client::query()
-                ->lockForUpdate()
-                ->findOrFail($client->id);
-
-            if ($points === 0) {
-                throw new RegleMetierException(
-                    'La correction doit être différente de zéro.',
-                    'points'
-                );
-            }
-
-            if ($client->soldePoints() + $points < 0) {
-                throw new RegleMetierException(
-                    'La correction rendrait le solde négatif.',
-                    'points'
-                );
-            }
-
-            $mouvement = MouvementPoints::create([
-                'client_id' => $client->id,
-                'type' => TypeMouvementPoints::Correction,
-                'points' => $points,
-                'motif' => $motif,
-                'enregistre_par' => $auteur->id,
-            ]);
-
-            $this->audit->log(
-                'fidelite.correction',
-                $client,
+                'fidelite.recompense.utilisee',
+                $utilisation,
                 nouvelles: [
-                    'points' => $points,
-                    'motif' => $motif,
+                    'client_id' => $client->id,
+                    'recompense_id' => $recompense->id,
+                    'mouvement_points_id' => $mouvement->id,
+                    'points_utilises' => $cout,
                 ]
             );
 
-            return $mouvement;
+            return $utilisation;
         });
     }
 }

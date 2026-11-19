@@ -19,11 +19,11 @@ class CaisseController extends Controller
     public function index(Request $request)
     {
         $base = Paiement::query()
-            ->when($request->filled('du'), fn ($q) => $q->whereDate('paye_le', '>=', $request->du))
-            ->when($request->filled('au'), fn ($q) => $q->whereDate('paye_le', '<=', $request->au))
-            ->when($request->filled('mode'), fn ($q) => $q->where('mode_paiement_id', $request->mode))
-            ->when($request->filled('q'), fn ($q) => $q->whereHas('client', fn ($c) => $c->where(
-                fn ($w) => $w->where('nom', 'like', "%{$request->q}%")
+            ->when($request->filled('du'), fn($q) => $q->whereDate('paye_le', '>=', $request->du))
+            ->when($request->filled('au'), fn($q) => $q->whereDate('paye_le', '<=', $request->au))
+            ->when($request->filled('mode'), fn($q) => $q->where('mode_paiement_id', $request->mode))
+            ->when($request->filled('q'), fn($q) => $q->whereHas('client', fn($c) => $c->where(
+                fn($w) => $w->where('nom', 'like', "%{$request->q}%")
                     ->orWhere('prenom', 'like', "%{$request->q}%")
             )));
 
@@ -52,7 +52,12 @@ class CaisseController extends Controller
         $modes = ModePaiement::where('is_active', true)->orderBy('libelle')->get();
 
         return view('caisse.index', compact(
-            'paiements', 'totalPeriode', 'recettesJour', 'recettesMois', 'nbPaiementsJour', 'modes'
+            'paiements',
+            'totalPeriode',
+            'recettesJour',
+            'recettesMois',
+            'nbPaiementsJour',
+            'modes'
         ));
     }
 
@@ -80,14 +85,18 @@ class CaisseController extends Controller
     public function annuler(AnnulerPaiementRequest $request, Paiement $paiement)
     {
         abort_unless(
-            $request->user()->aPermission('paiements.annuler'),
+            $request->user()->isAdmin()
+                || $request->user()->hasPermission('paiements.annuler'),
             403,
             "Vous n'avez pas la permission d'annuler un paiement."
         );
 
-        $this->caisse->annuler($paiement, $request->motif_annulation, $request->user());
+        $this->caisse->annuler(
+            $paiement,
+            $request->motif_annulation,
+            $request->user()
+        );
 
-        // « Corriger » = annuler puis ressaisir le paiement
         if ($request->boolean('corriger')) {
             return redirect()->route('caisse.create', array_filter([
                 'rendez_vous_id' => $paiement->rendez_vous_id,
@@ -106,9 +115,9 @@ class CaisseController extends Controller
             $paiements = Paiement::valides()
                 ->with('mode')
                 ->where('rendez_vous_id', $paiement->rendez_vous_id)
-                ->where(fn ($q) => $q
+                ->where(fn($q) => $q
                     ->where('paye_le', '<', $paiement->paye_le)
-                    ->orWhere(fn ($m) => $m
+                    ->orWhere(fn($m) => $m
                         ->where('paye_le', $paiement->paye_le)
                         ->where('id', '<=', $paiement->id)))
                 ->orderBy('paye_le')
@@ -135,8 +144,27 @@ class CaisseController extends Controller
             ? 'R-' . str_pad($paiement->rendez_vous_id, 5, '0', STR_PAD_LEFT)
             : null;
 
-        // Points de fidélité (affichés seulement si le paiement en a généré)
-        $mouvementPoints = DB::table('mouvements_points')->where('paiement_id', $paiement->id)->first();
+        // Points générés par ce paiement, en tenant compte des annulations.
+        $gains = DB::table('mouvements_points')
+            ->where('paiement_id', $paiement->id)
+            ->where('type', 'gain')
+            ->get();
+
+        $pointsGagnes = null;
+        $soldePoints = null;
+
+        if ($gains->isNotEmpty()) {
+            $corrections = DB::table('mouvements_points')
+                ->whereIn('mouvement_origine_id', $gains->pluck('id'))
+                ->sum('points');
+
+            $pointsGagnes = (int) $gains->sum('points') + (int) $corrections;
+
+            // Solde actuel du client.
+            $soldePoints = (int) DB::table('mouvements_points')
+                ->where('client_id', $paiement->client_id)
+                ->sum('points');
+        }
         $pointsGagnes = $mouvementPoints?->points;
         $soldePoints = $mouvementPoints
             ? (int) DB::table('mouvements_points')
@@ -150,25 +178,39 @@ class CaisseController extends Controller
         if (strlen($numero) === 9) {
             $numero = '221' . $numero; // indicatif du Sénégal
         }
-        $format = fn ($n) => number_format($n, 0, ',', ' ');
+        $format = fn($n) => number_format($n, 0, ',', ' ');
         $texte = "Bonjour {$paiement->client->prenom}, voici votre reçu {$numeroRecu} ({$nomSalon}) : "
             . $format($totalPaye) . ' FCFA payés sur ' . $format($totalDu) . ' FCFA'
             . ($reste > 0 ? ', reste à payer : ' . $format($reste) . ' FCFA' : ', paiement soldé')
             . '. Merci de votre visite !';
-        $lienWhatsapp = $numero ? 'https://wa.me/' . $numero . '?text=' . rawurlencode($texte) : null;
+        $lienWhatsapp = (
+            $numero && $paiement->client->canal_prefere === 'whatsapp'
+        )
+            ? 'https://wa.me/' . $numero . '?text=' . rawurlencode($texte)
+            : null;
 
         return view('caisse.recu', compact(
-            'paiement', 'paiements', 'totalDu', 'totalPaye', 'reste',
-            'nomSalon', 'adresseSalon', 'telephoneSalon',
-            'numeroRecu', 'codeClient', 'codeRdv',
-            'pointsGagnes', 'soldePoints', 'lienWhatsapp'
+            'paiement',
+            'paiements',
+            'totalDu',
+            'totalPaye',
+            'reste',
+            'nomSalon',
+            'adresseSalon',
+            'telephoneSalon',
+            'numeroRecu',
+            'codeClient',
+            'codeRdv',
+            'pointsGagnes',
+            'soldePoints',
+            'lienWhatsapp'
         ));
     }
 
     public function impayes()
     {
         $impayes = $this->rdvAvecReste(true);
-        $totalImpaye = $impayes->sum(fn ($r) => $r->prix_prevu - (int) $r->paye);
+        $totalImpaye = $impayes->sum(fn($r) => $r->prix_prevu - (int) $r->paye);
 
         return view('caisse.impayes', compact('impayes', 'totalImpaye'));
     }
@@ -203,13 +245,13 @@ class CaisseController extends Controller
         return back()->with('success', 'Mode de paiement mis à jour.');
     }
 
-        /** Rendez-vous non annulés ayant un reste à payer. */
+    /** Rendez-vous non annulés ayant un reste à payer. */
     private function rdvAvecReste(bool $passesSeulement)
     {
         return RendezVous::with(['client', 'lignes'])
             ->bloquants()
-            ->withSum(['paiements as paye' => fn ($q) => $q->whereNull('annule_le')], 'montant_paye')
-            ->when($passesSeulement, fn ($q) => $q->where('debut', '<=', now()))
+            ->withSum(['paiements as paye' => fn($q) => $q->whereNull('annule_le')], 'montant_paye')
+            ->when($passesSeulement, fn($q) => $q->where('debut', '<=', now()))
             ->whereRaw('rendez_vous.prix_prevu > COALESCE((
                 select sum(paiements.montant_paye)
                 from paiements
