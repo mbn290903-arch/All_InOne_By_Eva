@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Http\Controllers;
-
 use App\Enums\ZoneSalon;
 use Carbon\CarbonImmutable;
 use App\Enums\StatutRendezVous;
@@ -13,6 +11,8 @@ use App\Models\Employe;
 use App\Models\Service;
 use App\Models\Forfait;
 use App\Services\RendezVousService;
+use App\Services\StockService;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -191,6 +191,15 @@ class RendezVousController extends Controller
                 $champ => $exception->getMessage(),
             ]);
         }
+        // Déduction du stock : même comportement que pour le professionnel.
+        // Ne bloque jamais le changement de statut.
+        if ($nouveau === StatutRendezVous::Termine) {
+            try {
+                app(StockService::class)->consommerPourRendezVous($rendezVous->id, $user);
+            } catch (\Throwable $e) {
+                Log::warning("Consommation stock impossible (rendez-vous #{$rendezVous->id}) : " . $e->getMessage());
+            }
+        }
 
         // 6. Retourner au calendrier.
         return redirect()
@@ -240,7 +249,7 @@ class RendezVousController extends Controller
             abort(403);
         }
 
-                $reglesDebut = ['required', 'date'];
+        $reglesDebut = ['required', 'date'];
 
         if (! $user->peutPlanifierDansLePasse()) {
             $reglesDebut[] = 'after_or_equal:now';
