@@ -275,6 +275,7 @@
                 const numero = @json($waNumero); // déjà au format international : 221XXXXXXXXX
                 const messages = @json($textesWa);
                 const rdvTrouve = @json($rdvTrouve);
+                const autorisations = @json(collect($messagesWa)->map(fn($m) => (bool) $m['autorise']));
 
                 const verifier = () => {
                     const manque = /\[[^\]]+\]/.test(txt.value);
@@ -304,8 +305,37 @@
                 ['wa-close', 'wa-cancel'].forEach(id => document.getElementById(id).addEventListener('click', () => dlg
                     .close()));
                 document.getElementById('wa-send').addEventListener('click', () => {
-                    window.open('https://wa.me/' + numero + '?text=' + encodeURIComponent(txt.value), '_blank',
-                        'noopener');
+                    if (autorisations[sel.value] !== true) {
+                        alerte.textContent = "Ce modèle n'est pas autorisé pour cette cliente.";
+                        alerte.classList.remove('hidden');
+                        return;
+                    }
+
+                    if (!txt.value.trim()) {
+                        alerte.textContent = "Veuillez saisir un message.";
+                        alerte.classList.remove('hidden');
+                        return;
+                    }
+
+                    if (sel.value === 'rappel_rdv' && !rdvTrouve) {
+                        alerte.textContent =
+                            "Impossible d'utiliser ce rappel : aucun rendez-vous à venir n'a été trouvé.";
+                        alerte.classList.remove('hidden');
+                        return;
+                    }
+
+                    if (/\[[^\]]+\]/.test(txt.value)) {
+                        alerte.textContent = "Veuillez compléter les éléments entre crochets avant de continuer.";
+                        alerte.classList.remove('hidden');
+                        return;
+                    }
+
+                    window.open(
+                        'https://wa.me/' + numero + '?text=' + encodeURIComponent(txt.value),
+                        '_blank',
+                        'noopener'
+                    );
+
                     dlg.close();
                 });
             })();

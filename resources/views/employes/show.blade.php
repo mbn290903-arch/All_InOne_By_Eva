@@ -35,7 +35,7 @@
             @endforeach
         </div>
 
-        @can('update', App\Models\Employe::class)
+        @can('update', $employe)
             <a href="{{ route('employes.edit', $employe) }}"
                class="block rounded-lg border border-line py-2 text-center text-[12px] hover:bg-paper">Modifier</a>
         @endcan

@@ -27,7 +27,6 @@
             $peutGererClients = $estAdmin || $user->hasPermission('clients.gerer');
             $peutGererRdv = $estAdmin || $user->hasPermission('rdv.gerer');
             $peutEncaisser = $estAdmin || $user->hasPermission('paiements.enregistrer');
-            $peutWhatsApp = $estAdmin || $user->hasPermission('whatsapp.envoyer');
 
             $routeDashboard =
                 [
@@ -104,35 +103,32 @@
             </a>
         @endif
 
-        {{-- RELATION CLIENT --}}
-        @if ($estAdmin || $peutWhatsApp)
-            {{-- Campagnes : administratrice uniquement --}}
-            @if ($estAdmin)
-                <a href="{{ route('campagnes.index') }}"
-                    class="nav-link {{ request()->routeIs('campagnes.*') ? 'active' : '' }}">
-                    <i data-lucide="message-circle"></i>
-                    WhatsApp & campagnes
-                </a>
-            @endif
+{{-- RELATION CLIENT --}}
 
-            {{-- Anniversaires : administratrice uniquement --}}
-            @if ($estAdmin)
-                <a href="{{ route('anniversaires.index') }}"
-                    class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
-                    <i data-lucide="cake"></i>
-                    Anniversaires
-                </a>
-            @endif
+@if ($estAdmin)
 
-            {{-- Fidélité --}}
-            @if ($estAdmin)
-                <a href="{{ route('fidelite.index') }}"
-                    class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
-                    <i data-lucide="gem"></i>
-                    Fidélité
-                </a>
-            @endif
-        @endif
+    {{-- Campagnes WhatsApp : administrateur uniquement --}}
+    <a href="{{ route('campagnes.index') }}"
+        class="nav-link {{ request()->routeIs('campagnes.*') ? 'active' : '' }}">
+        <i data-lucide="message-circle"></i>
+        WhatsApp & campagnes
+    </a>
+
+    {{-- Anniversaires : administrateur uniquement --}}
+    <a href="{{ route('anniversaires.index') }}"
+        class="nav-link {{ request()->routeIs('anniversaires.*') ? 'active' : '' }}">
+        <i data-lucide="cake"></i>
+        Anniversaires
+    </a>
+
+    {{-- Fidélité : administrateur uniquement --}}
+    <a href="{{ route('fidelite.index') }}"
+        class="nav-link {{ request()->routeIs('fidelite.*') ? 'active' : '' }}">
+        <i data-lucide="gem"></i>
+        Fidélité
+    </a>
+
+@endif
 
         {{-- GESTION --}}
         @if ($estAdmin)

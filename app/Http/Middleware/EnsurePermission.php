@@ -7,6 +7,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsurePermission
 {
+    /**
+     * Vérifie que l'utilisateur possède au moins une permission demandée.
+     */
     public function handle(
         Request $request,
         Closure $next,
@@ -14,11 +17,20 @@ class EnsurePermission
     ): Response {
         $user = $request->user();
 
-        // Vérifier que l'utilisateur possède au moins une permission demandée.
-        $autorise = $user && collect($permissions)->isNotEmpty()
-            && collect($permissions)->contains(
-                fn (string $permission) => $user->hasPermission($permission)
-            );
+        // Refuser si aucun utilisateur ou aucune permission n'est fourni.
+        if (! $user || empty($permissions)) {
+            abort(403, "Vous n'avez pas la permission d'effectuer cette action.");
+        }
+
+        // L'administrateur dispose de tous les accès.
+        if ($user->isAdmin()) {
+            return $next($request);
+        }
+
+        // L'utilisateur doit posséder au moins une permission demandée.
+        $autorise = collect($permissions)->contains(
+            fn (string $permission) => $user->hasPermission($permission)
+        );
 
         abort_unless(
             $autorise,

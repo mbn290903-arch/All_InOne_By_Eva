@@ -165,13 +165,6 @@ class CaisseController extends Controller
                 ->where('client_id', $paiement->client_id)
                 ->sum('points');
         }
-        $pointsGagnes = $mouvementPoints?->points;
-        $soldePoints = $mouvementPoints
-            ? (int) DB::table('mouvements_points')
-                ->where('client_id', $paiement->client_id)
-                ->where('id', '<=', $mouvementPoints->id)
-                ->sum('points')
-            : null;
 
         // Lien WhatsApp (message prérempli)
         $numero = preg_replace('/\D/', '', $paiement->client->whatsapp ?: $paiement->client->telephone);

@@ -191,15 +191,7 @@ class RendezVousController extends Controller
                 $champ => $exception->getMessage(),
             ]);
         }
-        // Déduction du stock : même comportement que pour le professionnel.
-        // Ne bloque jamais le changement de statut.
-        if ($nouveau === StatutRendezVous::Termine) {
-            try {
-                app(StockService::class)->consommerPourRendezVous($rendezVous->id, $user);
-            } catch (\Throwable $e) {
-                Log::warning("Consommation stock impossible (rendez-vous #{$rendezVous->id}) : " . $e->getMessage());
-            }
-        }
+
 
         // 6. Retourner au calendrier.
         return redirect()

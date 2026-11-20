@@ -1,15 +1,16 @@
 <?php
 namespace App\Http\Controllers;
+
 use App\Models\Employe;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;;
-
 use App\Models\Service;
 use App\Models\Disponibilite;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
+use Carbon\Carbon;
 
 class EmployeController extends Controller
 {
@@ -22,17 +23,30 @@ class EmployeController extends Controller
             ->orderBy('prenom')
             ->get();
 
-        $voirPerformances = $request->user()->can('voirPerformances', Employe::class);
+        $voirPerformances = $request->user()->can(
+            'voirPerformances',
+            Employe::class
+        );
+
         $perfs = collect();
+
         [$du, $au] = $this->periode($request);
 
         if ($voirPerformances) {
             $perfs = $employes->mapWithKeys(
-                fn(Employe $e) => [$e->id => $e->performances($du, $au)]
+                fn (Employe $e) => [
+                    $e->id => $e->performances($du, $au)
+                ]
             );
         }
 
-        return view('employes.index', compact('employes', 'perfs', 'voirPerformances', 'du', 'au'));
+        return view('employes.index', compact(
+            'employes',
+            'perfs',
+            'voirPerformances',
+            'du',
+            'au'
+        ));
     }
 
     public function create()
@@ -40,7 +54,7 @@ class EmployeController extends Controller
         $this->authorize('create', Employe::class);
 
         return view('employes.form', [
-            'employe'  => new Employe(['is_active' => true]),
+            'employe' => new Employe(['is_active' => true]),
             'services' => Service::actifs()->orderBy('nom')->get(),
         ]);
     }
@@ -50,100 +64,175 @@ class EmployeController extends Controller
         $this->authorize('create', Employe::class);
 
         $employe = DB::transaction(function () use ($request) {
-            $employe = Employe::create($this->valider($request));
-            $employe->services()->sync($request->input('services', []));
+            $data = $this->valider($request);
+
+            $employe = Employe::create($data);
+
+            $employe->services()->sync(
+                $request->input('services', [])
+            );
+
             $this->enregistrerHoraires($employe, $request);
+
             $this->creerCompte($employe, $request);
 
             return $employe;
         });
 
-        return redirect()->route('employes.show', $employe)->with('success', 'Employé créé.');
+        return redirect()
+            ->route('employes.show', $employe)
+            ->with('success', 'Employé créé.');
     }
 
     public function show(Request $request, Employe $employe)
     {
-        $this->authorize('view', Employe::class);
+        $this->authorize('view', $employe);
 
-        $employe->load(['services', 'disponibilites']);
+        $employe->load([
+            'services',
+            'disponibilites',
+        ]);
 
         $perf = null;
+
         [$du, $au] = $this->periode($request);
 
-        if ($request->user()->can('voirPerformances', Employe::class)) {
+        if ($request->user()->can(
+            'voirPerformances',
+            Employe::class
+        )) {
             $perf = $employe->performances($du, $au);
         }
 
-        return view('employes.show', compact('employe', 'perf', 'du', 'au'));
+        return view('employes.show', compact(
+            'employe',
+            'perf',
+            'du',
+            'au'
+        ));
     }
 
     public function edit(Employe $employe)
     {
-        $this->authorize('update', Employe::class);
+        $this->authorize('update', $employe);
 
         return view('employes.form', [
-            'employe'  => $employe->load('services'),
+            'employe' => $employe->load('services'),
             'services' => Service::actifs()->orderBy('nom')->get(),
         ]);
     }
 
     public function update(Request $request, Employe $employe)
     {
-        $this->authorize('update', Employe::class);
+        $this->authorize('update', $employe);
 
         DB::transaction(function () use ($request, $employe) {
-            $employe->update($this->valider($request));
-            $employe->services()->sync($request->input('services', []));
+            $data = $this->valider($request);
 
-            // Les horaires ne sont remplacés que si le formulaire les envoie.
+            $employe->update($data);
+
+            $employe->services()->sync(
+                $request->input('services', [])
+            );
+
             if ($request->has('horaires')) {
                 $this->enregistrerHoraires($employe, $request);
             }
 
-            // Permet de relier un compte à une fiche créée sans compte.
             if (! $employe->user_id) {
                 $this->creerCompte($employe, $request);
             }
         });
 
-        return redirect()->route('employes.show', $employe)->with('success', 'Fiche mise à jour.');
+        return redirect()
+            ->route('employes.show', $employe)
+            ->with('success', 'Fiche mise à jour.');
     }
 
     private function valider(Request $request): array
     {
         $data = $request->validate([
-            'prenom'          => ['required', 'string', 'max:100'],
-            'nom'             => ['required', 'string', 'max:100'],
-            'telephone'        => ['required', 'string', 'max:20'],
-            'compte_email'     => ['nullable', 'email', 'max:255', 'unique:users,email', 'required_with:compte_password'],
-            'compte_password'  => ['nullable', 'string', 'min:10', 'required_with:compte_email'],
-            'fonction'        => ['required', 'string', 'max:100'],
-            'specialites'     => ['nullable', 'string', 'max:500'],
-            'taux_commission' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'services'        => ['array'],
-            'services.*'      => ['integer', 'exists:services,id'],
+            'prenom' => ['required', 'string', 'max:100'],
+            'nom' => ['required', 'string', 'max:100'],
+            'telephone' => ['required', 'string', 'max:20'],
 
-            'horaires'           => ['nullable', 'array'],
-            'horaires.*.debut'   => ['nullable', 'date_format:H:i'],
-            'horaires.*.fin'     => ['nullable', 'date_format:H:i', 'after:horaires.*.debut'],
+            'compte_email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email'),
+                'required_with:compte_password',
+            ],
+
+            'compte_password' => [
+                'nullable',
+                'string',
+                'min:12',
+                'required_with:compte_email',
+            ],
+
+            'fonction' => ['required', 'string', 'max:100'],
+            'specialites' => ['nullable', 'string', 'max:500'],
+
+            'taux_commission' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                'max:100',
+            ],
+
+            'is_active' => ['sometimes', 'boolean'],
+
+            'services' => ['sometimes', 'array'],
+            'services.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('services', 'id')
+                    ->where('is_active', true),
+            ],
+
+            'horaires' => ['sometimes', 'array'],
+            'horaires.*.actif' => ['sometimes', 'boolean'],
+            'horaires.*.debut' => [
+                'nullable',
+                'date_format:H:i',
+            ],
+            'horaires.*.fin' => [
+                'nullable',
+                'date_format:H:i',
+                'after:horaires.*.debut',
+            ],
         ]);
 
-        // Seul l'admin peut fixer la rémunération.
-        if (! $request->user()->can('voirPerformances', Employe::class)) {
+        $user = $request->user();
+
+        // Seul l'administrateur peut modifier le statut actif.
+        if (! $user->isAdmin()) {
+            unset($data['is_active']);
             unset($data['taux_commission']);
         } else {
-            $data['taux_commission'] = $data['taux_commission'] ?? 0;
+            $data['is_active'] = $request->boolean('is_active');
+            $data['taux_commission'] =
+                $data['taux_commission'] ?? 0;
         }
 
-        $data['is_active'] = $request->boolean('is_active');
-        unset($data['services']);
-        unset($data['horaires']);
-        unset($data['compte_email'], $data['compte_password']);
+        unset(
+            $data['services'],
+            $data['horaires'],
+            $data['compte_email'],
+            $data['compte_password']
+        );
+
         return $data;
     }
-    /** Remplace les horaires de l'employé par ceux du formulaire. */
-    private function enregistrerHoraires(Employe $employe, Request $request): void
-    {
+
+    /**
+     * Remplace les horaires de l'employé.
+     */
+    private function enregistrerHoraires(
+        Employe $employe,
+        Request $request
+    ): void {
         $employe->disponibilites()->delete();
 
         foreach (array_keys(Disponibilite::JOURS) as $jour) {
@@ -152,38 +241,72 @@ class EmployeController extends Controller
             }
 
             $debut = $request->input("horaires.$jour.debut");
-            $fin   = $request->input("horaires.$jour.fin");
+            $fin = $request->input("horaires.$jour.fin");
 
             if ($debut && $fin) {
                 $employe->disponibilites()->create([
                     'jour_semaine' => $jour,
-                    'heure_debut'  => $debut,
-                    'heure_fin'    => $fin,
+                    'heure_debut' => $debut,
+                    'heure_fin' => $fin,
                 ]);
             }
         }
     }
-    /** Crée le compte de connexion « professionnel » et le relie à la fiche. */
-    private function creerCompte(Employe $employe, Request $request): void
-    {
+
+    /**
+     * Crée un compte professionnel et le relie à sa fiche.
+     */
+    private function creerCompte(
+        Employe $employe,
+        Request $request
+    ): void {
         if (! $request->filled('compte_email')) {
             return;
         }
 
+        // Vérifie que la fiche n'est pas déjà reliée à un compte.
+        if ($employe->user_id) {
+            return;
+        }
+
+        $roleId = Role::query()
+            ->where('name', 'professionnel')
+            ->value('id');
+
+        if (! $roleId) {
+            throw new \RuntimeException(
+                "Le rôle professionnel n'existe pas."
+            );
+        }
+
         $user = User::create([
-            'name'      => $employe->prenom . ' ' . $employe->nom,
-            'email'     => $request->input('compte_email'),
-            'password'  => Hash::make($request->input('compte_password')),
-            'role_id'   => Role::query()->where('name', 'professionnel')->value('id'),
+            'name' => $employe->prenom . ' ' . $employe->nom,
+            'email' => $request->input('compte_email'),
+            'password' => Hash::make(
+                $request->input('compte_password')
+            ),
+            'role_id' => $roleId,
             'is_active' => true,
         ]);
 
-        $employe->update(['user_id' => $user->id]);
+        $employe->update([
+            'user_id' => $user->id,
+        ]);
     }
+
     private function periode(Request $request): array
     {
-        $du = Carbon::parse($request->input('du', now()->startOfMonth()))->startOfDay();
-        $au = Carbon::parse($request->input('au', now()->endOfMonth()))->endOfDay();
+        $du = Carbon::parse(
+            $request->input('du', now()->startOfMonth())
+        )->startOfDay();
+
+        $au = Carbon::parse(
+            $request->input('au', now()->endOfMonth())
+        )->endOfDay();
+
+        if ($du->gt($au)) {
+            abort(422, 'La date de début doit précéder la date de fin.');
+        }
 
         return [$du, $au];
     }

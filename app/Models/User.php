@@ -1,5 +1,6 @@
 <?php
 namespace App\Models;
+
 use App\Enums\Permission as PermissionEnum;
 use App\Enums\Role as RoleEnum;
 use Database\Factories\UserFactory;
@@ -14,9 +15,18 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    protected $fillable = ['name', 'email', 'password', 'role_id', 'is_active'];
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role_id',
+        'is_active',
+    ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
 
     protected function casts(): array
     {
@@ -27,40 +37,72 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Relation avec le rôle de l'utilisateur.
+     */
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Relation avec le profil employé.
+     */
     public function employe(): HasOne
     {
         return $this->hasOne(Employe::class);
     }
 
+    /**
+     * Vérifie si l'utilisateur possède un rôle précis.
+     */
     public function hasRole(RoleEnum $role): bool
     {
         return $this->role?->name === $role->value;
     }
 
+    /**
+     * Vérifie si l'utilisateur est administrateur.
+     */
     public function isAdmin(): bool
     {
         return $this->hasRole(RoleEnum::Admin);
     }
 
-    /** Peut créer ou déplacer un rendez-vous dans le passé. */
-    public function peutPlanifierDansLePasse(): bool
+    /**
+     * Vérifie si le compte est actif.
+     */
+    public function isActive(): bool
     {
-        return $this->isAdmin() || $this->hasPermission('rdv.passe');
+        return $this->is_active === true;
     }
 
+    /**
+     * Vérifie si l'utilisateur peut planifier un rendez-vous dans le passé.
+     */
+    public function peutPlanifierDansLePasse(): bool
+    {
+        return $this->isAdmin()
+            || $this->hasPermission('rdv.passe');
+    }
+
+    /**
+     * Vérifie si l'utilisateur possède une permission.
+     */
     public function hasPermission(PermissionEnum|string $permission): bool
     {
-        $name = $permission instanceof PermissionEnum ? $permission->value : $permission;
+        $name = $permission instanceof PermissionEnum
+            ? $permission->value
+            : $permission;
 
         return $this->role?->permissions->contains('name', $name) ?? false;
     }
+
+    /**
+     * Alias français pour la vérification d'une permission.
+     */
     public function aPermission(string $nom): bool
     {
-        return $this->role?->permissions->contains('name', $nom) ?? false;
+        return $this->hasPermission($nom);
     }
 }

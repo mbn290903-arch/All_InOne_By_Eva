@@ -1,5 +1,8 @@
 <?php
+
 namespace App\Providers;
+
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\ServiceProvider;
@@ -19,6 +22,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::before(function ($user, string $ability) {
+            return $user->isAdmin() ? true : null;
+        });
         ResetPassword::toMailUsing(function ($notifiable, string $token) {
             $url = route('password.reset', [
                 'token' => $token,

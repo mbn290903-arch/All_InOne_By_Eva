@@ -33,6 +33,7 @@ Route::middleware('guest')->group(function () {
         ->name('login.show');
 
     Route::post('/connexion', [AuthController::class, 'login'])
+        ->middleware('throttle:5,1')
         ->name('login');
 
     Route::get('/mot-de-passe-oublie', [PasswordResetController::class, 'demande'])
@@ -51,7 +52,7 @@ Route::middleware('guest')->group(function () {
 });
 
 // Routes utilisateurs connectés
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active'])->group(function () {
 
     // Catalogue
     Route::get('/catalogue', [PrestationController::class, 'index'])
@@ -221,12 +222,21 @@ Route::middleware('auth')->group(function () {
         ->middleware('role:professionnel,admin')
         ->name('professionnel.rendez-vous.statut');
 
-    // Gestion des clients
-    Route::middleware(['role:admin,receptionniste', 'permission:clients.gerer'])->group(function () {
 
+    // Export des clients : permission spécifique
+    Route::middleware([
+        'role:admin,receptionniste',
+        'permission:clients.exporter'
+    ])->group(function () {
         Route::get('clients/export', [ClientController::class, 'export'])
             ->name('clients.export');
+    });
 
+    // Gestion des clients
+    Route::middleware([
+        'role:admin,receptionniste',
+        'permission:clients.gerer'
+    ])->group(function () {
         Route::resource('clients', ClientController::class)
             ->except(['destroy']);
 
@@ -236,6 +246,7 @@ Route::middleware('auth')->group(function () {
         Route::post('clients/{client}/restore', [ClientController::class, 'restore'])
             ->name('clients.restore');
     });
+
 
 
     // Anniversaires : administratrice uniquement
@@ -270,12 +281,37 @@ Route::middleware('auth')->group(function () {
             Route::get('/{campagne}', [CampagneController::class, 'show'])->name('show');
         });
 
+
+
     // Gestion des employés
-    Route::middleware('admin')->group(function () {
-        Route::resource('employes', EmployeController::class)
-            ->parameters(['employes' => 'employe'])
-            ->except(['destroy']);
+
+    // 1. Consultation de la liste
+    Route::middleware('role:admin,receptionniste')->group(function () {
+        Route::get('/employes', [EmployeController::class, 'index'])
+            ->name('employes.index');
     });
+
+    // 2. Création et modification : administrateur uniquement
+    Route::middleware('admin')->group(function () {
+        Route::get('/employes/create', [EmployeController::class, 'create'])
+            ->name('employes.create');
+
+        Route::post('/employes', [EmployeController::class, 'store'])
+            ->name('employes.store');
+
+        Route::get('/employes/{employe}/edit', [EmployeController::class, 'edit'])
+            ->name('employes.edit');
+
+        Route::put('/employes/{employe}', [EmployeController::class, 'update'])
+            ->name('employes.update');
+    });
+
+    // 3. Fiche employé : administrateur et réceptionniste
+    Route::middleware('role:admin,receptionniste')->group(function () {
+        Route::get('/employes/{employe}', [EmployeController::class, 'show'])
+            ->name('employes.show');
+    });
+
 
     // Paramètres des modèles WhatsApp
     Route::middleware('admin')->group(function () {
@@ -394,6 +430,7 @@ Route::middleware('auth')->group(function () {
 // Gestion des rendez-vous
 Route::middleware([
     'auth',
+    'active',
     'role:admin,receptionniste',
     'permission:rdv.gerer',
 ])
