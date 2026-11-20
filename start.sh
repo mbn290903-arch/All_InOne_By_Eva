@@ -7,6 +7,6 @@ php artisan migrate --force
 
 php artisan config:cache
 php artisan route:cache
+php artisan admin:reset-password
 php artisan view:cache
-
 exec apache2-foreground
