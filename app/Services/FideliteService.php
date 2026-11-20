@@ -27,6 +27,7 @@ class FideliteService
         return intdiv($montant, $tranche);
     }
 
+
     /**
      * Crédite les points d'un rendez-vous terminé et entièrement réglé.
      */
@@ -54,16 +55,27 @@ class FideliteService
                 return null;
             }
 
-            // Un seul gain par rendez-vous.
-            $gainExistant = MouvementPoints::query()
+            // Récupérer tous les paiements du rendez-vous,
+            // y compris ceux qui ont été annulés.
+            $paiementIds = Paiement::query()
+                ->where('rendez_vous_id', $rendezVous->id)
+                ->pluck('id');
+
+            // Vérifier s'il existe déjà un gain non annulé.
+            $gainsExistants = MouvementPoints::query()
                 ->where('type', TypeMouvementPoints::Gain)
                 ->where('client_id', $rendezVous->client_id)
-                ->where('motif', "Rendez-vous du {$rendezVous->debut->format('d/m/Y')}")
-                ->whereIn('paiement_id', $paiements->pluck('id'))
-                ->first();
+                ->whereIn('paiement_id', $paiementIds)
+                ->get();
 
-            if ($gainExistant) {
-                return null;
+            foreach ($gainsExistants as $gain) {
+                $dejaAnnule = MouvementPoints::query()
+                    ->where('mouvement_origine_id', $gain->id)
+                    ->exists();
+
+                if (! $dejaAnnule) {
+                    return null;
+                }
             }
 
             $dernierPaiement = $paiements->last();
@@ -110,13 +122,14 @@ class FideliteService
     }
 
     /**
-     * Annule le gain associé au rendez-vous d'un paiement annulé.
+     * Annule les gains liés au rendez-vous d'un paiement annulé.
+     * Les points ne sont recrédités que si le rendez-vous
+     * reste terminé et entièrement payé.
      */
     public function annulerGainDuPaiement(int $paiementId, User $auteur): void
     {
         DB::transaction(function () use ($paiementId, $auteur) {
             $paiement = Paiement::query()
-                ->with('rendezVous')
                 ->lockForUpdate()
                 ->find($paiementId);
 
@@ -124,8 +137,17 @@ class FideliteService
                 return;
             }
 
+            $rendezVous = RendezVous::query()
+                ->lockForUpdate()
+                ->find($paiement->rendez_vous_id);
+
+            if (! $rendezVous) {
+                return;
+            }
+
+            // Tous les paiements du rendez-vous, même annulés.
             $paiementIds = Paiement::query()
-                ->where('rendez_vous_id', $paiement->rendez_vous_id)
+                ->where('rendez_vous_id', $rendezVous->id)
                 ->pluck('id');
 
             $gains = MouvementPoints::query()
@@ -161,8 +183,14 @@ class FideliteService
                     ]
                 );
             }
+
+            // Cette méthode ne recrédite des points que si
+            // le rendez-vous est terminé et encore intégralement payé.
+            $this->crediterSiEligible($rendezVous);
         });
     }
+
+
 
     /**
      * Utilise une récompense.

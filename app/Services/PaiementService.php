@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Services;
 
 use App\Enums\StatutRendezVous;
@@ -56,19 +55,51 @@ class PaiementService
         });
     }
 
-    /** Annule un paiement sans le supprimer : il reste visible mais ne compte plus dans les recettes. */
-    public function annuler(Paiement $paiement, string $motif, User $auteur): Paiement
-    {
+
+/**
+ * Annule un paiement sans le supprimer.
+ * Le paiement reste dans l'historique mais ne compte plus
+ * dans les recettes ni dans le calcul des points.
+ */
+public function annuler(Paiement $paiement, string $motif, User $auteur): Paiement
+{
+    return DB::transaction(function () use ($paiement, $motif, $auteur) {
+
+        // Recharger et verrouiller le paiement.
+        $paiement = Paiement::query()
+            ->lockForUpdate()
+            ->findOrFail($paiement->id);
+
+        // Vérifier à nouveau dans la transaction.
         if ($paiement->estAnnule()) {
-            throw new RegleMetierException('Ce paiement est déjà annulé.');
+            throw new RegleMetierException(
+                'Ce paiement est déjà annulé.'
+            );
         }
 
-        return DB::transaction(function () use ($paiement, $motif, $auteur) {
-            $paiement->update(['annule_le' => now(), 'annule_par' => $auteur->id, 'motif_annulation' => $motif]);
-            $this->fidelite->annulerGainDuPaiement($paiement->id, $auteur);
-            $this->audit->log('paiement.annule', $paiement, nouvelles: ['motif' => $motif]);
+        // Annuler le paiement sans le supprimer.
+        $paiement->update([
+            'annule_le' => now(),
+            'annule_par' => $auteur->id,
+            'motif_annulation' => $motif,
+        ]);
 
-            return $paiement;
-        });
-    }
+        // Annuler les gains de fidélité concernés.
+        $this->fidelite->annulerGainDuPaiement(
+            $paiement->id,
+            $auteur
+        );
+
+        // Enregistrer l'opération dans le journal d'audit.
+        $this->audit->log(
+            'paiement.annule',
+            $paiement,
+            nouvelles: [
+                'motif' => $motif,
+            ]
+        );
+        return $paiement;
+    });
+}
+
 }

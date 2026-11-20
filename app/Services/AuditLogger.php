@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Services;
-
 use App\Models\HistoriqueAction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
