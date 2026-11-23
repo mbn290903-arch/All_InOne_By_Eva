@@ -6,5 +6,6 @@ php artisan route:cache
 php artisan view:cache
 php artisan storage:link || true
 php artisan migrate --force
+if [ "$CREATE_ADMIN" = "true" ]; then php artisan app:create-admin; fi
 if [ "$RUN_SEED" = "true" ]; then php artisan db:seed --force; fi
 exec apache2-foreground
