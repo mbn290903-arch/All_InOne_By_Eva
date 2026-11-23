@@ -482,25 +482,18 @@ class ClientController extends Controller
     /**
      * Anniversaires des 30 prochains jours.
      */
-    private function anniversaire(Builder $query): Builder
-    {
-        $jours = collect(range(0, 30))
-            ->map(fn($i) => now()->startOfDay()->addDays($i)->format('m-d'))
-            ->all();
+    private function anniversaire($query)
+{
+    $jours = collect(range(0, 30))
+        ->map(fn ($i) => now()->addDays($i)->format('m-d'))
+        ->all();
 
-        $expr = DB::getDriverName() === 'sqlite'
-            ? "strftime('%m-%d', date_naissance)"
-            : "DATE_FORMAT(date_naissance, '%m-%d')";
+    $placeholders = implode(',', array_fill(0, count($jours), '?'));
 
-        return $query
-            ->whereNotNull('date_naissance')
-            ->whereRaw(
-                "{$expr} in (" .
-                    implode(',', array_fill(0, count($jours), '?')) .
-                    ')',
-                $jours
-            );
-    }
+    return $query
+        ->whereNotNull('date_naissance')
+        ->whereRaw("to_char(date_naissance, 'MM-DD') IN ($placeholders)", $jours);
+}
 
     /**
      * Normalise puis valide les informations.
