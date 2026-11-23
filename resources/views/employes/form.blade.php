@@ -8,6 +8,8 @@
     $choisis = old('services', $employe->services->pluck('id')->all());
     $dispos = $employe->exists ? $employe->disponibilites->keyBy('jour_semaine') : collect();
     $voirPerf = auth()->user()->can('voirPerformances', App\Models\Employe::class);
+    $estAdmin = auth()->user()->isAdmin();
+    $emailActuel = $employe->user_id ? App\Models\User::find($employe->user_id)?->email : null;
 @endphp
 
 <form method="POST" class="mx-auto max-w-3xl space-y-5"
@@ -76,6 +78,33 @@
             <label class="{{ $lb }}">Commission (% du montant des prestations réalisées)</label>
             <input type="number" step="0.01" min="0" max="100" name="taux_commission"
                    value="{{ old('taux_commission', $employe->taux_commission ?? 0) }}" class="{{ $in }} max-w-[160px]">
+        </section>
+    @endif
+
+    @if ($estAdmin)
+        <section class="grid gap-4 rounded-xl border border-line bg-white p-5 shadow-soft sm:grid-cols-2">
+            <h3 class="text-[13px] font-semibold sm:col-span-2">Accès à l'application (professionnel)</h3>
+
+            <div>
+                <label class="{{ $lb }}" for="email_connexion">E-mail de connexion</label>
+                <input type="email" id="email_connexion" name="email_connexion"
+                       value="{{ old('email_connexion', $emailActuel) }}"
+                       autocomplete="off" class="{{ $in }}">
+                @error('email_connexion')
+                    <p class="mt-1 text-[11px] text-red-700">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
+                <label class="{{ $lb }}" for="mot_de_passe">
+                    Mot de passe {{ $employe->user_id ? '(laisser vide pour ne pas changer)' : '(10 caractères min.)' }}
+                </label>
+                <input type="password" id="mot_de_passe" name="mot_de_passe"
+                       autocomplete="new-password" class="{{ $in }}">
+                @error('mot_de_passe')
+                    <p class="mt-1 text-[11px] text-red-700">{{ $message }}</p>
+                @enderror
+            </div>
         </section>
     @endif
 
