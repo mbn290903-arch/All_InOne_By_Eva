@@ -488,10 +488,11 @@ class ClientController extends Controller
             ->map(fn($i) => now()->startOfDay()->addDays($i)->format('m-d'))
             ->all();
 
-        $expr = DB::getDriverName() === 'sqlite'
-            ? "strftime('%m-%d', date_naissance)"
-            : "DATE_FORMAT(date_naissance, '%m-%d')";
-
+      $expr = match (DB::getDriverName()) {
+    'sqlite' => "strftime('%m-%d', date_naissance)",
+    'pgsql'  => "to_char(date_naissance, 'MM-DD')",
+    default  => "DATE_FORMAT(date_naissance, '%m-%d')",
+};
         return $query
             ->whereNotNull('date_naissance')
             ->whereRaw(

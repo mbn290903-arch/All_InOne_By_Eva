@@ -41,10 +41,11 @@ class AnniversaireController extends Controller
         for ($i = 0; $i <= 6; $i++)                       { $ajouter($aujourdhui->copy()->addDays($i)); }
 
         $mdListe = array_keys($parMd);
-        $expr    = DB::getDriverName() === 'sqlite'
-            ? "strftime('%m-%d', date_naissance)"
-            : "DATE_FORMAT(date_naissance, '%m-%d')";
-
+       $expr = match (DB::getDriverName()) {
+    'sqlite' => "strftime('%m-%d', date_naissance)",
+    'pgsql'  => "to_char(date_naissance, 'MM-DD')",
+    default  => "DATE_FORMAT(date_naissance, '%m-%d')",
+};
         $candidats = $this->rechercher(
             Client::query()
                 ->whereNull('archived_at')
