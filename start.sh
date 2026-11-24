@@ -7,5 +7,6 @@ php artisan view:cache
 php artisan storage:link || true
 php artisan migrate --force
 echo "CREATE_ADMIN=[$CREATE_ADMIN] RUN_SEED=[$RUN_SEED]"
+if [ "$CREATE_ADMIN" = "true" ]; then php artisan app:create-admin 2>&1; echo "create-admin code retour: $?"; fi
 if [ "$RUN_SEED" = "true" ]; then php artisan db:seed --force; fi
 exec apache2-foreground
